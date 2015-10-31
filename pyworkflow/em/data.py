@@ -1429,7 +1429,7 @@ class SetOfClasses(EMSet):
         for item in inputSet.iterItems(**iterParams):
             # copy items if enabled or copyDisabled=True
             if classifyDisabled or item.isEnabled():
-                newItem = item.clone()
+                newItem = item#.clone()
                 if updateItemCallback:
                     row = None if itemDataIterator is None else next(itemDataIterator)
                     updateItemCallback(newItem, row)
@@ -1446,6 +1446,7 @@ class SetOfClasses(EMSet):
                     classItem.setAcquisition(inputSet.getAcquisition())
                     if updateClassCallback is not None:
                         updateClassCallback(classItem)
+                    print "Adding new class: ", ref
                     self.append(classItem)
                 else:
                     classItem = clsDict[ref]
@@ -1455,6 +1456,7 @@ class SetOfClasses(EMSet):
                     next(itemDataIterator) # just skip disabled data row                    
                     
         for classItem in clsDict.values():
+            print "Updating class..."
             self.update(classItem)                    
                 
 

@@ -346,7 +346,7 @@ class Object(object):
         attr = self
         for p in key.split('.'):
             attr = getattr(attr, p)
-        return attr.get()
+        return attr.getObjValue()
     
     def getValuesFromDict(self, objDict):
         """ Retrieve the values of the attributes

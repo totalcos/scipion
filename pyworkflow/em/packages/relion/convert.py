@@ -24,20 +24,21 @@
 # *  e-mail address 'jmdelarosa@cnb.csic.es'
 # *
 # **************************************************************************
-from itertools import izip
 """
 This module contains converter functions that will serve to:
 1. Write from base classes to Relion specific files
 2. Read from Relion files to base classes
 """
 
+import sys
 import os
 from os.path import join, basename
-import numpy
+from itertools import izip
 from collections import OrderedDict
+import numpy
 
 from pyworkflow.object import ObjectWrap, String, Integer
-from pyworkflow.utils import Environ
+from pyworkflow.utils import Environ, Timer
 from pyworkflow.utils.path import (createLink, cleanPath, copyFile,
                                    replaceBaseExt, getExt, removeExt)
 import pyworkflow.em as em
@@ -183,19 +184,22 @@ def rowToObject(row, obj, attrDict, extraLabels={}):
     """
     obj.setEnabled(row.getValue(md.RLN_IMAGE_ENABLED, 1) > 0)
     
-    for attr, label in attrDict.iteritems():
+    def __setAttrFromLabel(attr, label):
         value = row.getValue(label)
         if not hasattr(obj, attr):
             setattr(obj, attr, ObjectWrap(value))
         else:
             getattr(obj, attr).set(value)
         
+    for attr, label in attrDict.iteritems():
+        __setAttrFromLabel(attr, label)
+        
     attrLabels = attrDict.values()
     
     for label in extraLabels:
         if label not in attrLabels and row.hasLabel(label):
-            labelStr = md.label2Str(label)
-            setattr(obj, '_' + labelStr, row.getValueAsObject(label))
+            attr = '_' + md.label2Str(label)
+            __setAttrFromLabel(attr, label)
     
 
 def setObjId(obj, mdRow, label=md.RLN_IMAGE_ID):
@@ -237,17 +241,11 @@ def ctfModelToRow(ctfModel, ctfRow):
     objectToRow(ctfModel, ctfRow, CTF_DICT, extraLabels=CTF_EXTRA_LABELS)
     
 
-def rowToCtfModel(ctfRow):
-    """ Create a CTFModel from a row of a meta """
-    if ctfRow.containsAll(CTF_DICT):
-        ctfModel = em.CTFModel()
-        rowToObject(ctfRow, ctfModel, CTF_DICT, extraLabels=CTF_EXTRA_LABELS)
-        ctfModel.standardize()
-        setPsdFiles(ctfModel, ctfRow)
-    else:
-        ctfModel = None
-        
-    return ctfModel
+def rowToCtfModel(ctfRow, ctf):
+    """ Setup the CTF parameters to a given ctf object. """
+    rowToObject(ctfRow, ctf, CTF_DICT, extraLabels=CTF_EXTRA_LABELS)
+    ctf.standardize()
+    setPsdFiles(ctf, ctfRow)
 
 
 def geometryFromMatrix(matrix, inverseTransform):
@@ -349,22 +347,14 @@ def coordinateToRow(coord, coordRow, copyId=True):
         coordRow.setValue(md.RLN_MICROGRAPH_NAME, str(coord.getMicId()))
 
 
-def rowToCoordinate(coordRow):
+def rowToCoordinate(coordRow, coord):
     """ Create a Coordinate from a row of a meta """
-    # Check that all required labels are present in the row
-    if coordRow.containsAll(COOR_DICT):
-        coord = em.Coordinate()
-        rowToObject(coordRow, coord, COOR_DICT)
-            
-        #FIXME: THE FOLLOWING IS NOT CLEAN
-        try:
-            coord.setMicId(int(coordRow.getValue(md.RLN_MICROGRAPH_NAME)))
-        except Exception:
-            pass
-    else:
-        coord = None
-        
-    return coord
+    rowToObject(coordRow, coord, COOR_DICT)
+    #FIXME: THE FOLLOWING IS NOT CLEAN
+    try:
+        coord.setMicId(int(coordRow.getValue(md.RLN_MICROGRAPH_NAME)))
+    except Exception:
+        pass
 
     
 def imageToRow(img, imgRow, imgLabel, **kwargs):
@@ -422,10 +412,8 @@ def particleToRow(part, partRow, **kwargs):
     imageToRow(part, partRow, md.RLN_IMAGE_NAME, **kwargs)
 
 
-def rowToParticle(partRow, **kwargs):
+def rowToParticle(partRow, img, **kwargs):
     """ Create a Particle from a row of a meta """
-    img = em.Particle()
-    
     # Provide a hook to be used if something is needed to be 
     # done for special cases before converting image to row
     preprocessImageRow = kwargs.get('preprocessImageRow', None)
@@ -439,8 +427,8 @@ def rowToParticle(partRow, **kwargs):
     if partRow.containsLabel(md.RLN_PARTICLE_CLASS):
         img.setClassId(partRow.getValue(md.RLN_PARTICLE_CLASS))
     
-    if kwargs.get('readCtf', True):
-        img.setCTF(rowToCtfModel(partRow))
+    if kwargs.get('readCtf', True) and img.hasCTF():
+        rowToCtfModel(partRow, img.getCTF())
         
     # alignment is mandatory at this point, it shoud be check
     # and detected defaults if not passed at readSetOf.. level
@@ -460,7 +448,8 @@ def rowToParticle(partRow, **kwargs):
     rowToObject(partRow, img, {}, 
                 extraLabels=IMAGE_EXTRA_LABELS + kwargs.get('extraLabels', []))
 
-    img.setCoordinate(rowToCoordinate(partRow))
+    if img.hasCoordinate():
+        rowToCoordinate(partRow, img.getCoordinate())
     
     # copy micId if available from row to particle
     if partRow.hasLabel(md.RLN_MICROGRAPH_ID):
@@ -484,18 +473,43 @@ def readSetOfParticles(filename, partSet, **kwargs):
         imgSet: the SetOfParticles that will be populated.
         rowToParticle: this function will be used to convert the row to Object
     """    
+    t = Timer()
+    print "Reading metadata: ", filename
+    t.tic()
     imgMd = md.MetaData(filename)
+    firstRow = md.getFirstRow(imgMd)
+    t.toc("Finish read MetaData")
     # By default remove disabled items from metadata
     # be careful if you need to preserve the original number of items
     if kwargs.get('removeDisabled', True):
         imgMd.removeDisabled()
     
-    for imgRow in md.iterRows(imgMd):
-        img = rowToParticle(imgRow, **kwargs)
+    n = imgMd.size()
+    
+    print "Reading particles: ", filename
+    t.tic()
+    
+    img = em.Particle()
+    
+    if firstRow.containsAll(CTF_DICT):
+        img.setCTF(em.CTFModel())
+    # Check that all required labels are present in the row
+    if firstRow.containsAll(COOR_DICT):
+        img.setCoordinate(em.Coordinate())
+    
+    for i, imgRow in enumerate(md.iterRows(imgMd)):
+        rowToParticle(imgRow, img, **kwargs)
         partSet.append(img)
+        
+        if i % 500 == 0:
+            sys.stdout.write("\rRead %d/%d" % (i+1, n))
+            sys.stdout.flush()
+    
+    print ""
         
     partSet.setHasCTF(img.hasCTF())
     partSet.setAlignment(kwargs['alignType'])
+    t.toc()
     
 
 def setOfImagesToMd(imgSet, imgMd, imgToFunc, **kwargs):

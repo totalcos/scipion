@@ -554,12 +554,29 @@ class SqliteFlatMapper(Mapper):
         self.db.close()
         
     def insert(self, obj):
+        """Insert a new object into the system, the id will be set"""
+        # The first inserted obj is somehow special
+        # the database tables structure will be created 
+        # from this first object, so one limitation
+        # is that further objects should have the same
+        # properties than the first one
         if self.doCreateTables:
             self.db.createTables(obj.getObjDict(includeClass=True))
             self.doCreateTables = False
-        """Insert a new object into the system, the id will be set"""
-        self.db.insertObject(obj.getObjId(), obj.isEnabled(), obj.getObjLabel(), obj.getObjComment(), 
-                             *obj.getObjDict().values())
+            self._objDict = obj.getObjDict()
+            values = self._objDict.values()
+        else:
+            # From the second object on, we will use the initial dict
+            # to retrieve the other values more efficiently
+            # see differences between:
+            # Object.getObjDict and Object.getValuesFromDict
+            values = obj.getValuesFromDict(self._objDict)
+            
+        self.db.insertObject(obj.getObjId(), 
+                             obj.isEnabled(), 
+                             obj.getObjLabel(), 
+                             obj.getObjComment(), 
+                             *values)
         
     def enableAppend(self):
         """ This will allow to append items to existing db. 

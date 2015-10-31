@@ -38,8 +38,10 @@ class SqliteDb():
     """
     OPEN_CONNECTIONS = {} # Store all conections made
     
-    def __init__(self):
+    def __init__(self, dbName=None):
         self._reuseConnections = False
+        if dbName is not None:
+            self._createConnection(dbName, timeout=300)
         
     def _createConnection(self, dbName, timeout):
         """Establish db connection"""
