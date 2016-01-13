@@ -81,6 +81,10 @@ typedef enum
 #define FOR_ALL_OBJECTS_IN_METADATA(__md) \
         for(MDIterator __iter(__md); __iter.hasNext(); __iter.moveNext())
 
+
+#define FOR_ALL_ROWS_IN_METADATA(__md) \
+        for(MDRowIterator __iter(__md); __iter.hasNext(); __iter.moveNext(__md))
+
 /** Iterate over all elements of two MetaData at same time.
  *
  * This macro is useful to iterate over two MetaData with the same
@@ -187,10 +191,41 @@ public:
 }
 ;//class MDIterator
 
+
+////////////////////////////// MetaData Row Iterator ////////////////////////////
+/** Iterates over metadata rows */
+class MDRowIterator
+{
+protected:
+
+	// Current row data.
+	MDRow	currentRow;
+
+	// Flag set to true if a new row has been retrieved.
+	bool 	rowReturned;
+
+public:
+
+    /** Empty constructor, creates an iterator from metadata */
+    MDRowIterator(MetaData &md);
+
+    // Get current row data.
+    MDRow *getRow(void);
+
+    /** Function to move to next element.
+     * return false if there aren't more elements to iterate.
+     */
+    bool moveNext(MetaData &md);
+
+    /** Function to check if exist next element */
+    bool hasNext();
+}
+;//class MDRowIterator
+
 /** Class to manage data files.
  *
  * The MetaData class manages all procedures related to
- * metadata. MetaData is intended to group toghether old
+ * metadata. MetaData is intended to group together old
  * Xmipp specific files like Docfiles, Selfiles, etc..
  *
  */
@@ -204,7 +239,7 @@ protected:
     MDLabel fastStringSearchLabel;
     String path; ///< A parameter stored on MetaData Files
     String comment; ///< A general comment for the MetaData file
-    ///comment is wraped in char_max lenght lines
+    ///comment is wraped in char_max length lines
 #define line_max 70
 
     bool _isColumnFormat; ///< Format for the file, column or row formatted
@@ -220,7 +255,7 @@ protected:
      **/
     std::vector<MDLabel> activeLabels;
 
-    /** When reading a column formated file, if a label is found that
+    /** When reading a column formatted file, if a label is found that
      * does not exist as a MDLabel, it is ignored. For further
      * file processing, such columns must be ignored and this structure
      * allows to do that
@@ -249,7 +284,7 @@ protected:
     void copyMetadata(const MetaData &md, bool copyObjects = true);
 
     /** This have the same logic of the public one,
-     * but doesn't perform any range(wich implies do a size()) checks.
+     * but doesn't perform any range(which implies do a size()) checks.
      */
     void _selectSplitPart(const MetaData &mdIn,
                           int n, int part, size_t mdSize,
@@ -288,7 +323,7 @@ protected:
     void _readRowsStar(mdBlock &block, std::vector<MDObject*> & columnValues, const std::vector<MDLabel> *desiredLabels);
     void _readRowFormat(std::istream& is);
 
-    /** This two variables will be used to read the metadata infomation (labels and size)
+    /** This two variables will be used to read the metadata information (labels and size)
      * or maybe a few rows only
      */
     size_t _maxRows, _parsedLines;
@@ -380,7 +415,7 @@ public:
 
     /** Check if there is any other block to read with the name
      * given by the regular expression.
-     *  returns pointer do first two data_entries and firts loop
+     *  returns pointer do first two data_entries and first loop
      */
     bool nextBlockToRead(regex_t &re,
                          char * startingPoint,
@@ -466,7 +501,7 @@ public:
      */
 
 
-    /** Set the value of all objects in an specified column (both value and colum are specified in mdValueIn)
+    /** Set the value of all objects in an specified column (both value and column are specified in mdValueIn)
     */
     bool setValueCol(const MDObject &mdValueIn);
 
@@ -606,13 +641,25 @@ public:
     void setColumnValues(const std::vector<MDObject> &valuesIn);
 
     /** Get all values of an MetaData row of an specified objId*/
-    bool getRow(MDRow &row, size_t id) const;
+    bool	bindValue( size_t id) const;
+
+    bool 	initGetRow(bool addWhereClause) const;
+    bool 	execGetRow(MDRow &row);
+    void 	finalizeGetRow(void);
+    bool 	getRow(MDRow &row, size_t id) const;
+    bool 	getRow2(MDRow &row, size_t id);
 
     /** Copy all the values in the input row in the current metadata*/
-    void setRow(const MDRow &row, size_t id);
+    bool 	initSetRow(const MDRow &row);
+    bool 	execSetRow(const MDRow &row, size_t id);
+    void 	setRow(const MDRow &row, size_t id);
+    bool 	setRow2(const MDRow &row, size_t id);
 
     /** Add a new Row and set values, return the objId of newly added object */
-    size_t addRow(const MDRow &row);
+    bool 	initAddRow(const MDRow &row);
+    bool 	execAddRow(const MDRow &row);
+    size_t 	addRow(const MDRow &row);
+    bool  	addRow2(const MDRow &row);
 
     /** Set label values from string representation.
      */
@@ -900,7 +947,7 @@ public:
 
     /** Union of all elements in two Metadata, duplicating common elements.
      * Result in calling metadata object
-     * Repetion are allowed
+     * Repetition are allowed
      */
     void unionAll(const MetaData &mdIn);
 
@@ -916,7 +963,7 @@ public:
      */
     void intersection(const MetaData &mdIn, const MDLabel label);
 
-    /** Substract two Metadatas.
+    /** Subtract two Metadatas.
      * Result in "calling" metadata
      */
     void subtraction(const MetaData &mdIn, const MDLabel label);

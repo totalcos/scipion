@@ -27,17 +27,24 @@
 This sub-package contains wrapper around Screen Particles Xmipp program
 """
 
+import pyworkflow.em.metadata as md
+
 from pyworkflow.object import String
 from pyworkflow.protocol.params import IntParam, PointerParam, LEVEL_ADVANCED
 from pyworkflow.em.protocol import ProtProcessParticles
 
-from convert import writeSetOfParticles, readSetOfParticles, writeSetOfClasses2D
+from convert import writeSetOfParticles, writeSetOfClasses2D, xmippToLocation
 
 
         
 class XmippProtDenoiseParticles(ProtProcessParticles):
-    """ Remove particles noise by filtering them. This filtering process is based on a projection over a basis created from some averages (extracted from classes). This filtering is not intended for processing particles. The huge filtering they will be passed through is known to remove part of the signal 
-    with the noise. However this is a good method for clearly see which particle are we going to process before it's done. """
+    """ Remove particles noise by filtering them. 
+    This filtering process is based on a projection over a basis created
+    from some averages (extracted from classes). This filtering is not 
+    intended for processing particles. The huge filtering they will be 
+    passed through is known to remove part of the signal with the noise. 
+    However this is a good method for clearly see which particle are we 
+    going to process before it's done. """
     _label = 'denoise particles'
 
     #--------------------------- DEFINE param functions --------------------------------------------
@@ -101,12 +108,17 @@ class XmippProtDenoiseParticles(ProtProcessParticles):
         self.outputMd = String('%s.stk' % fnRootDenoised)
 
     def createOutputStep(self):
-        imgSet = self._createSetOfParticles()
-        imgSet.copyInfo(self.inputParticles.get())
-        readSetOfParticles(self.outputMd.get(), imgSet)
-
-        self._defineOutputs(outputParticles=imgSet)
-
+        imgSet = self.inputParticles.get()
+        partSet = self._createSetOfParticles()
+        
+        partSet.copyInfo(imgSet)
+        partSet.copyItems(imgSet,
+                            updateItemCallback=self._updateLocation,
+                            itemDataIterator=md.iterRows(self.outputMd.get(), sortByLabel=md.MDL_ITEM_ID))
+        
+        self._defineOutputs(outputParticles=partSet)
+        self._defineSourceRelation(imgSet, partSet)
+    
     #--------------------------- INFO functions --------------------------------------------                
     def _summary(self):
         summary = []
@@ -135,3 +147,8 @@ class XmippProtDenoiseParticles(ProtProcessParticles):
                            % (len(self.inputParticles.get()), len(self.inputClasses.get())))
         return methods
     
+    #--------------------------- UTILS functions --------------------------------------------
+    def _updateLocation(self, item, row):
+        index, filename = xmippToLocation(row.getValue(md.MDL_IMAGE))
+        item.setLocation(index, filename)
+

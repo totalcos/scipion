@@ -151,7 +151,7 @@ private:
 
     /** Insert a new register inserting input columns.
      */
-    bool setObjectValues(const std::vector<MDObject*> & columnValues, const std::vector<MDLabel> *desiredLabels, bool firstTime);
+    bool setObjectValues( size_t id, const std::vector<MDObject*> columnValues, const std::vector<MDLabel> *desiredLabels=NULL);
 
     /**Set the value of an object in an specified column.
      */
@@ -163,7 +163,7 @@ private:
 
     /** Get the values of several objects.
      */
-    bool getObjectsValues(const size_t objId, std::vector<MDLabel> labels, std::vector<MDObject> *values);
+    bool getObjectsValues( std::vector<MDLabel> labels, std::vector<MDObject> *values);
 
     /** Get the value of an object.
      */
@@ -176,8 +176,6 @@ private:
      * if no query is provided by default all are returned
      */
     void selectObjects(std::vector<size_t> &objectsOut, const MDQuery *queryPtr = NULL);
-
-    void finalizePreparedStmt(void);
 
     /** return metadata size
      *
@@ -274,7 +272,10 @@ private:
     bool dropTable();
     bool createTable(const std::vector<MDLabel> * labelsVector = NULL, bool withObjID=true);
     bool insertValues(double a, double b);
-    bool initializeGetObjectsValuesStatement(std::vector<MDLabel> labels);
+    bool initializeSelect( bool addWhereObjId, std::vector<MDLabel> labels);
+    bool initializeInsert(const std::vector<MDLabel> *labels, const std::vector<MDObject*> &values);
+    bool initializeUpdate( std::vector<MDLabel> labels);
+    void finalizePreparedStmt(void);
     void prepareStmt(const std::stringstream &ss, sqlite3_stmt *stmt);
     bool execSingleStmt(const std::stringstream &ss);
     bool execSingleStmt(sqlite3_stmt *&stmt, const std::stringstream *ss = NULL);
@@ -283,8 +284,9 @@ private:
 
     String tableName(const int tableId) const;
 
-    int bindValue(sqlite3_stmt *stmt, const int position, const MDObject &valueIn);
-    void extractValue(sqlite3_stmt *stmt, const int position, MDObject &valueOut);
+    bool 	bindStatement( size_t id);
+    int 	bindValue(sqlite3_stmt *stmt, const int position, const MDObject &valueIn);
+    void 	extractValue(sqlite3_stmt *stmt, const int position, MDObject &valueOut);
 
     static char *errmsg;
     static const char *zLeftover;
@@ -319,7 +321,7 @@ class MDQuery
 public:
     int limit; ///< If distint of -1 the results will be limited to this value
     int offset; ///< If distint of 0, offset elements will be discarded
-    MDLabel orderLabel; ///< Label to wich apply sort of the results
+    MDLabel orderLabel; ///< Label to which apply sort of the results
     bool asc;
 
     /** Constructor. */
@@ -449,7 +451,7 @@ public:
  *  ///Remove all images that are disabled
  *  MetaData md1, md2;
  *  md1.removeObjects(MDValueEQ(MDL_ENABLED, -1));
- *  ///Import objects from md2 to md1 wich rot angle is 0.
+ *  ///Import objects from md2 to md1 which rot angle is 0.
  *  md1.importObjects(md2, MDValueEQ(MDL_ANGLE_ROT, 0.));
  *  @endcode
  */
@@ -607,7 +609,7 @@ public:
 ;//end of class MDExpression
 
 /** Query several conditions using AND and OR.
- * This kind of query if usefull if you want to check
+ * This kind of query if useful if you want to check
  * two conditions at the same time, for example, import
  * all images that are enabled and have rotational angle greater than 100.
  * @code

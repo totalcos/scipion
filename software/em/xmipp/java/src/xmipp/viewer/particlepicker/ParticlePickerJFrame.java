@@ -508,7 +508,7 @@ public abstract class ParticlePickerJFrame extends JFrame implements ActionListe
 
 	protected void openHelpURl()
 	{
-		XmippWindowUtil.openURI("http://scipion.cnb.csic.es/bin/view/TWiki/Picker");
+		XmippWindowUtil.openURI("https://github.com/biocompwebs/scipion/wiki/Picker");
 	}
 
 	protected abstract void resetMicrograph();
@@ -924,7 +924,8 @@ public abstract class ParticlePickerJFrame extends JFrame implements ActionListe
 		
 		sizetf.setValue(size);
 		sizesl.setValue(size);
-		getCanvas().repaint();
+		if(getCanvas() != null)
+			getCanvas().repaint();
 		getParticlePicker().setSize(size);
                 //updateMicrographsModel();
                 if(particlesdialog != null)
