@@ -39,6 +39,7 @@ from dataimport import *
 # some sub-packages
 from nma import *
 from pdb import *
+from helix import *
 
 from protocol_preprocess import *
 
