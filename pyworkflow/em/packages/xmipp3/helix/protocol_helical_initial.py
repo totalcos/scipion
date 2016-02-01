@@ -96,6 +96,7 @@ class XmippProtHelixInitial(ProtReconstruct3D):
             objId = mdClasses.addObject()
             clsLoc = getImageLocation(cls2D.getRepresentative())
             mdClasses.setValue(xmipp.MDL_IMAGE, clsLoc, objId)
+            mdClasses.setValue(xmipp.MDL_ITEM_ID, long(cls2D.getObjId()), objId)
 
         mdFile = self._getExtraPath('averages.xmd')
         mdClasses.write(mdFile)
