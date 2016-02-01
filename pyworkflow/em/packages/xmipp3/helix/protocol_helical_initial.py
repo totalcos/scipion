@@ -62,7 +62,7 @@ class XmippProtHelixInitial(ProtReconstruct3D):
         """ Centralize how files are called for iterations and references. """
         myDict = {
             'input_xmd': self._getExtraPath('input_particles.xmd'),
-            'initial_volume': self._getPath('initial_volume.vol'),
+            'initial_volume': self._getExtraPath('initial_volume.vol'),
             'helical_volume': self._getPath('helical_volume.vol')
             }
         self._updateFilenamesDict(myDict)
@@ -79,53 +79,28 @@ class XmippProtHelixInitial(ProtReconstruct3D):
         self._insertFunctionStep('createOutputStep')
         
     #--------------------------- STEPS functions --------------------------------------------
-    def createHorizontalMask(self, inputClasses):
-        """ Create an horizontal line mask to be used for alignment. """
-        firstAvg = inputClasses.getFirstItem().getRepresentative()
-        maskFile = self._getExtraPath('horizontal_mask.spi')
-
-        params =  '-i %s' % getImageLocation(firstAvg)
-        params += ' --mask rectangular -%d -10' % firstAvg.getXDim()
-        params += ' --create_mask %s' % maskFile
-
-        self.runJob('xmipp_transform_mask', params)
-        #xmipp_transform_mask "aligned2_ref.xmp" "--create_mask" "mask.spi" "--mask" "rectangular" "-80" "-10"
-
-        mdClasses = xmipp.MetaData()
-        for cls2D in inputClasses:
-            objId = mdClasses.addObject()
-            clsLoc = getImageLocation(cls2D.getRepresentative())
-            mdClasses.setValue(xmipp.MDL_IMAGE, clsLoc, objId)
-            mdClasses.setValue(xmipp.MDL_ITEM_ID, long(cls2D.getObjId()), objId)
-
-        mdFile = self._getExtraPath('averages.xmd')
-        mdClasses.write(mdFile)
-        params =  ' -i %s' % mdFile
-        params += ' --ref %s' % maskFile
-        params += ' --do_not_check_mirrors --iter 1'
-        params += ' --oroot %s' % self._getExtraPath('align')
-
-        self.runJob('xmipp_image_align', params)
 
     def convertInputStep(self, classesId):
         inputClasses = self.inputClasses2D.get()
-        self.createHorizontalMask(inputClasses)
+        clsDict = self.detectOrientation(inputClasses)
 
         mdAll = xmipp.MetaData()
 
         for cls2D in inputClasses:
             md = xmipp.MetaData()
             setOfParticlesToMd(cls2D, md)
-            # TODO: Determine which class is vertical or horizontal
-            # for horizontal classes we need to drop x-shift
-            # for vertical classes we need to drop y-shift
-            mdAll.unionAll(md)
+            rot = clsDict[cls2D.getObjId()]
+
+            if rot is None:
+                print "WARNING: Ignoring class %s" % cls2D.getObjId()
+            else:
+                if rot == 90:
+                    print "Rotating by 90 images of class %s" % cls2D.getObjId()
+                    md.operate("anglePsi=anglePsi+90")
+                mdAll.unionAll(md)
 
         mdAll.fillConstant(xmipp.MDL_ANGLE_TILT, 90)
         mdAll.fillRandom(xmipp.MDL_ANGLE_ROT, "uniform", 0, 360)
-
-        #mdAll.fillConstant(xmipp.MDL_ANGLE_ROT, 0)
-        #mdAll.fillRandom(xmipp.MDL_ANGLE_TILT, "uniform", 0, 180)
 
         mdAll.write(self._getFileName('input_xmd'))
 
@@ -175,3 +150,57 @@ class XmippProtHelixInitial(ProtReconstruct3D):
         return []
     
     #--------------------------- UTILS functions --------------------------------------------
+    def createHorizontalMask(self, inputClasses):
+        """ Create an horizontal line mask to align with
+        class averages and detect if there need to be
+        retated by 90 degrees.
+        """
+        firstAvg = inputClasses.getFirstItem().getRepresentative()
+        maskFile = self._getExtraPath('horizontal_mask.spi')
+
+        params =  '-i %s' % getImageLocation(firstAvg)
+        params += ' --mask rectangular -%d -10' % firstAvg.getXDim()
+        params += ' --create_mask %s' % maskFile
+
+        self.runJob('xmipp_transform_mask', params)
+        #xmipp_transform_mask "aligned2_ref.xmp" "--create_mask" "mask.spi" "--mask" "rectangular" "-80" "-10"
+        return maskFile
+
+    def detectOrientation(self, inputClasses):
+        """ Check if the class averages are vertical or horizontal.
+        If they are vertical, we need to rotate images by 90 degrees
+        to have all of them horizontal before reconstruction.
+        """
+        maskFile = self.createHorizontalMask(inputClasses)
+
+        mdClasses = xmipp.MetaData()
+        for cls2D in inputClasses:
+            objId = mdClasses.addObject()
+            clsLoc = getImageLocation(cls2D.getRepresentative())
+            mdClasses.setValue(xmipp.MDL_IMAGE, clsLoc, objId)
+            mdClasses.setValue(xmipp.MDL_ITEM_ID, long(cls2D.getObjId()), objId)
+
+        mdFile = self._getExtraPath('averages.xmd')
+        mdClasses.write(mdFile)
+        params =  ' -i %s' % mdFile
+        params += ' --ref %s' % maskFile
+        params += ' --do_not_check_mirrors --iter 1'
+        params += ' --oroot %s' % self._getExtraPath('align')
+
+        self.runJob('xmipp_image_align', params)
+
+        clsDict = {}
+        mdAlign = xmipp.MetaData(self._getExtraPath('align_alignment.xmd'))
+        for objId in mdAlign:
+            clsId = mdAlign.getValue(xmipp.MDL_ITEM_ID, objId)
+            clsImg = mdAlign.getValue(xmipp.MDL_IMAGE, objId)
+            absAngle = abs(mdAlign.getValue(xmipp.MDL_ANGLE_PSI, objId))
+
+            if absAngle > 180:
+                rot = None
+            else:
+                rot = 0 if (absAngle < 20 or absAngle > 160) else 90
+            clsDict[clsId] = rot
+            print " class %d: Rotate %s" % (clsId, rot)
+
+        return clsDict
