@@ -559,8 +559,13 @@ class ProjMatcher():
             imgDiff = img-imgRef
             imgDiff.write(MDout.getValue(xmipp.MDL_IMAGE1,i))
 
+# TODO: Replace this class and its usage with the one in:
+#
 class HelicalFinder():
-    """ Base class for protocols that find helical symmetry """
+    """ Base class for protocols that find helical symmetry
+    TODO: To be substituted with:
+    pyworkflow/em/packages/xmipp3/helix/helix.py: HelicalFinder
+    """
 
     def getSymmetry(self,dihedral):
         if dihedral:
@@ -606,14 +611,14 @@ class HelicalFinder():
             doMask=True
         if doMask:
             self.runJob('xmipp_transform_mask',args)
-            
+
 
 # ---------------- Legacy code from 'protlib_xmipp.py' ----------------------
 
 def xmippExists(path):
     return xmipp.FileName(path).exists()
-            
-            
+
+
 class XmippScript():
     ''' This class will serve as wrapper around the XmippProgram class
     to have same facilities from Python scripts'''
