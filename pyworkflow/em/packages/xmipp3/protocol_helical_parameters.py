@@ -23,10 +23,6 @@
 # *  e-mail address 'xmipp@cnb.csic.es'
 # *
 # **************************************************************************
-import pyworkflow
-"""
-This sub-package contains protocols for performing subtomogram averaging.
-"""
 
 import pyworkflow.object as pwobj
 from pyworkflow.em import *  
@@ -36,23 +32,36 @@ from pyworkflow.em.packages.xmipp3.convert import getImageLocation
 from pyworkflow.protocol.constants import LEVEL_ADVANCED
 
 
-class XmippProtHelicalParameters(ProtPreprocessVolumes, HelicalFinder):
+class XmippProtHelicalSymmetrize(ProtPreprocessVolumes):
     """ Estimate helical parameters and symmetrize.
     
-         Helical symmetry is defined as V(r,rot,z)=V(r,rot+k*DeltaRot,z+k*Deltaz)."""
-    _label = 'helical symmetry'
+        Helical symmetry is defined as:
+        V(r,rot,z)=V(r,rot+k*DeltaRot,z+k*Deltaz).
+    """
+    _label = 'helical symmetrize'
     
     #--------------------------- DEFINE param functions --------------------------------------------
     def _defineParams(self, form):
         form.addSection(label='General parameters')
-        form.addParam('inputVolume', PointerParam, pointerClass="Volume", label='Input volume')
-        form.addParam('cylinderInnerRadius',IntParam,label='Cylinder inner radius', default=-1,
-                      help="The helix is supposed to occupy this radius in voxels around the Z axis. Leave it as -1 for symmetrizing the whole volume")
-        form.addParam('cylinderOuterRadius',IntParam,label='Cylinder outer radius', default=-1,
-                      help="The helix is supposed to occupy this radius in voxels around the Z axis. Leave it as -1 for symmetrizing the whole volume")
-        form.addParam('dihedral',BooleanParam,default=False,label='Apply dihedral symmetry')
-        form.addParam('forceDihedralX',BooleanParam,default=False,expertLevel=LEVEL_ADVANCED, label='Force the dihedral axis to be in X',
-                      help="If this option is chosen, then the dihedral axis is not searched and it is assumed that it is around X.")
+        form.addParam('inputVolume', PointerParam, pointerClass="Volume",
+                      label='Input volume')
+        form.addParam('cylinderInnerRadius', IntParam, default=-1,
+                      label='Cylinder inner radius',
+                      help="The helix is supposed to occupy this radius in "
+                           "voxels around the Z axis. Leave it as -1 for "
+                           "symmetrizing the whole volume")
+        form.addParam('cylinderOuterRadius',IntParam,
+                      label='Cylinder outer radius', default=-1,
+                      help="The helix is supposed to occupy this radius in voxels "
+                           "around the Z axis. Leave it as -1 for symmetrizing "
+                           "the whole volume")
+        form.addParam('dihedral',BooleanParam, default=False,
+                      label='Apply dihedral symmetry')
+        form.addParam('forceDihedralX',BooleanParam, default=False,
+                      expertLevel=LEVEL_ADVANCED,
+                      label='Force the dihedral axis to be in X',
+                      help="If this option is chosen, then the dihedral axis is "
+                           "not searched and it is assumed that it is around X.")
 
         form.addSection(label='Search limits')
         form.addParam('heightFraction',FloatParam,default=0.9,label='Height fraction',
@@ -71,43 +80,69 @@ class XmippProtHelicalParameters(ProtPreprocessVolumes, HelicalFinder):
 
     #--------------------------- INSERT steps functions --------------------------------------------
     def _insertAllSteps(self):
-        self._insertFunctionStep('copyInput')
-        self._insertFunctionStep('coarseSearch')
-        self._insertFunctionStep('fineSearch')
-        self._insertFunctionStep('symmetrize')
-        self._insertFunctionStep('createOutput')
-        self.fnVol = getImageLocation(self.inputVolume.get())
-        self.fnVolSym=self._getPath('volume_symmetrized.vol')
-        [self.height,_,_]=self.inputVolume.get().getDim()
+        self._insertFunctionStep('convertInputStep')
+        self._insertFunctionStep('coarseSearchStep')
+        self._insertFunctionStep('fineSearchStep')
+        self._insertFunctionStep('symmetrizeStep')
+        self._insertFunctionStep('createOutputStep')
+
+        # Store some general attributes
+        inputVol = self.inputVolume.get()
+        self.fnVol = getImageLocation(inputVol)
+        self.fnVolSym = self._getPath('volume_symmetrized.vol')
+        self.height = inputVol.getXDim()
+        self.helical = None
     
     #--------------------------- STEPS functions --------------------------------------------
-    def copyInput(self):
+    def convertInputStep(self):
         if self.dihedral:
             if not self.forceDihedralX:
-                self.runJob("xmipp_transform_symmetrize","-i %s -o %s --sym dihedral --dont_wrap" % (self.fnVol, self.fnVolSym))
+                self.runJob("xmipp_transform_symmetrize",
+                            "-i %s -o %s --sym dihedral --dont_wrap" % (self.fnVol, self.fnVolSym))
             else:
-                self.runJob("xmipp_transform_geometry","-i %s -o %s --rotate_volume axis 180 1 0 0" % (self.fnVol, self.fnVolSym))
-                self.runJob("xmipp_image_operate","-i %s --plus %s -o %s" % (self.fnVol, self.fnVolSym, self.fnVolSym))
-                self.runJob("xmipp_image_operate","-i %s --mult 0.5" % self.fnVolSym)
+                self.runJob("xmipp_transform_geometry",
+                            "-i %s -o %s --rotate_volume axis 180 1 0 0" % (self.fnVol, self.fnVolSym))
+                self.runJob("xmipp_image_operate",
+                            "-i %s --plus %s -o %s" % (self.fnVol, self.fnVolSym, self.fnVolSym))
+                self.runJob("xmipp_image_operate",
+                            "-i %s --mult 0.5" % self.fnVolSym)
         else:
             ImageHandler().convert(self.inputVolume.get(), self.fnVolSym)
                         
-    def coarseSearch(self):
-        self.runCoarseSearch(self.fnVolSym,self.dihedral.get(),float(self.heightFraction.get()),float(self.z0.get()),float(self.zF.get()),float(self.zStep.get()),
-                             float(self.rot0.get()),float(self.rotF.get()),float(self.rotStep.get()),
-                             self.numberOfThreads.get(),self._getExtraPath('coarseParams.xmd'),
-                             int(self.cylinderInnerRadius.get()),int(self.cylinderOuterRadius.get()),int(self.height),self.inputVolume.get().getSamplingRate())
+    def coarseSearchStep(self):
+        self.runCoarseSearch(self.fnVolSym, self.dihedral.get(),
+                             float(self.heightFraction.get()),
+                             float(self.z0.get()), float(self.zF.get()),
+                             float(self.zStep.get()), float(self.rot0.get()),
+                             float(self.rotF.get()),float(self.rotStep.get()),
+                             self.numberOfThreads.get(),
+                             self._getExtraPath('coarseParams.xmd'),
+                             int(self.cylinderInnerRadius.get()),
+                             int(self.cylinderOuterRadius.get()),
+                             int(self.height),
+                             self.inputVolume.get().getSamplingRate())
 
-    def fineSearch(self):
-        self.runFineSearch(self.fnVolSym, self.dihedral.get(), self._getExtraPath('coarseParams.xmd'), self._getExtraPath('fineParams.xmd'), 
-                           float(self.heightFraction.get()),float(self.z0.get()),float(self.zF.get()),float(self.rot0.get()),float(self.rotF.get()),
-                             int(self.cylinderInnerRadius.get()),int(self.cylinderOuterRadius.get()),int(self.height),self.inputVolume.get().getSamplingRate())
+    def fineSearchStep(self):
+        self.runFineSearch(self.fnVolSym, self.dihedral.get(),
+                           self._getExtraPath('coarseParams.xmd'),
+                           self._getExtraPath('fineParams.xmd'),
+                           float(self.heightFraction.get()), float(self.z0.get()),
+                           float(self.zF.get()),float(self.rot0.get()),
+                           float(self.rotF.get()),
+                           int(self.cylinderInnerRadius.get()),
+                           int(self.cylinderOuterRadius.get()),
+                           int(self.height),self.inputVolume.get().getSamplingRate())
 
-    def symmetrize(self):
-        self.runSymmetrize(self.fnVolSym, self.dihedral.get(), self._getExtraPath('fineParams.xmd'), self.fnVolSym, 
-                           float(self.heightFraction.get()), self.cylinderInnerRadius.get(), self.cylinderOuterRadius.get(), self.height,self.inputVolume.get().getSamplingRate())
+    def symmetrizeStep(self):
+        self.runSymmetrize(self.fnVolSym, self.dihedral.get(),
+                           self._getExtraPath('fineParams.xmd'), self.fnVolSym,
+                           float(self.heightFraction.get()),
+                           self.cylinderInnerRadius.get(),
+                           self.cylinderOuterRadius.get(),
+                           self.height,
+                           self.inputVolume.get().getSamplingRate())
 
-    def createOutput(self):
+    def createOutputStep(self):
         volume = Volume()
         volume.setFileName(self._getPath('volume_symmetrized.vol'))
         #volume.setSamplingRate(self.inputVolume.get().getSamplingRate())
@@ -143,3 +178,5 @@ class XmippProtHelicalParameters(ProtPreprocessVolumes, HelicalFinder):
                 messages.append('We applied dihedral symmetry.')
         return messages
 
+# Keeping old name for backward compatibility
+XmippProtHelicalParameters = XmippProtHelicalSymmetrize
