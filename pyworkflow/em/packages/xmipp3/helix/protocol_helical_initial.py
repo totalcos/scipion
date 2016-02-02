@@ -143,12 +143,16 @@ class XmippProtHelixInitial(ProtReconstruct3D):
         self._defineOutputs(outputVolume=volume)
         self._defineSourceRelation(self.inputClasses2D, volume)
 
+        # Let use an special iterator to skip missing particles
+        # discarded by classification (in case of cl2d)
+        setMdIter = md.SetMdIterator(self._getFileName('input_xmd'),
+                                     sortByLabel=md.MDL_ITEM_ID,
+                                     updateItemCallback=self._createItemMatrix)
         outputImages = self._createSetOfParticles()
         outputImages.copyInfo(inputImages)
         outputImages.copyItems(inputImages,
-                          updateItemCallback=self._createItemMatrix,
-                          itemDataIterator=md.iterRows(self._getFileName('input_xmd'),
-                                                       sortByLabel=md.MDL_ITEM_ID))
+                               updateItemCallback=setMdIter.updateItem)
+        outputImages.setAlignmentProj()
         self._defineOutputs(outputParticles=outputImages)
         self._defineSourceRelation(self.inputClasses2D, outputImages)
     
