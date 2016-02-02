@@ -38,7 +38,7 @@ class HelicalFinder():
             sampling: sampling rate (or pixel size)
             heightFraction: ???
             dihedral: boolean, True if dihedral symmetry.
-            mask: 3-tuple: outerRadius, innerRadius and height
+            mask: 3-tuple: innerRadius, outerRadius and height
                 (use -1 for no mask cilinder/tube)
         """
         self.protocol = protocol
@@ -53,23 +53,37 @@ class HelicalFinder():
 
     def hasMask(self):
         """ We assume to have mask if the outerRadius is > 0. """
-        return self.mask[0] > 0
+        return self.mask[1] > 0
 
-    def searchCoarse(self, fnVol, fnOut,
-                     z0, zF, zStep,
-                     rot0, rotF, rotStep,
-                     numberOfThreads):
+    def searchCoarse(self, fnVol, fnOut, z, rot, numberOfThreads):
+        """
+        Params:
+            fnVol: input volume
+            fnOut:
+            z: 3-tuple: z0, zFm, zStep
+            rot: 3-tuple: rot0, rotF, rotStep
+            numberOfThreads: number of threads to use
+        """
         args = self._commonArgs(fnVol, fnOut)
-        args += " -z %f %f %f " % (z0, zF, zStep)
-        args += " --rotHelical %f %f %f" % (rot0, rotF, rotStep)
+        args += " -z %f %f %f " % z
+        args += " --rotHelical %f %f %f" % rot
         args += " --thr %s" % numberOfThreads
         self.runJob('xmipp_volume_find_symmetry', args)
 
-    def searchFine(self, fnVol, fnCoarse, fnFine, z0, zF, rot0, rotF):
+    def searchFine(self, fnVol, fnCoarse, fnFine, z, rot):
+        """
+        Params:
+            fnVol: input volume
+            fnCoarse: ???
+            fnFine: ???,
+            z: 2-tuple: z0, zF
+            rot: 2-tuple: rot0, rotF
+        """
         rotInit, zInit = self._paramsFromMd(fnCoarse)
         args = self._commonArgs(fnVol, fnFine)
         args += " --localHelical %f %f " % (zInit, rotInit)
-        args += " -z %f %f 1 --rotHelical %f %f 1" % (z0, zF, rot0, rotF)
+        args += " -z %f %f 1 " % z
+        args += " --rotHelical %f %f 1" % rot
         self.runJob('xmipp_volume_find_symmetry',args)
 
     def symmetrize(self, fnVol, fnParams, fnOut):
@@ -87,10 +101,10 @@ class HelicalFinder():
         arg = ''
         if self.hasMask():
             i, o, h = self.mask
-            if self.mask[1] < 0:
+            if i < 0:
                 arg = ' --mask cylinder -%d -%d' % (o, h)
             else:
-                arg = ' --mask tube -%d -%d -%d' % (i, o, h)
+                arg = ' --mask tube -%d -%d -%d' % self.mask
         return arg
 
     def _commonArgs(self, inFn, outFn, maskArgs=True):
