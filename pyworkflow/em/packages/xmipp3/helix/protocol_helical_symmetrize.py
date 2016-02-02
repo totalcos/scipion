@@ -172,5 +172,3 @@ class XmippProtHelicalSymmetrize(ProtPreprocessVolumes):
                 messages.append('We applied dihedral symmetry.')
         return messages
 
-    # Keeping old name for backward compatibility
-XmippProtHelicalParameters = XmippProtHelicalSymmetrize

@@ -27,3 +27,4 @@
 from helix import HelicalFinder
 
 from protocol_helical_initial import XmippProtHelixInitial
+from protocol_helical_symmetrize import XmippProtHelicalSymmetrize
