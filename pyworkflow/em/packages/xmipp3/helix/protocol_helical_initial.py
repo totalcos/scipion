@@ -25,6 +25,7 @@
 # **************************************************************************
 
 import pyworkflow.protocol.params as params
+import pyworkflow.em.metadata as md
 from pyworkflow.em.data import Volume
 from pyworkflow.em.protocol import ProtReconstruct3D
 from pyworkflow.em.packages.xmipp3.convert import setOfParticlesToMd, getImageLocation
@@ -50,9 +51,15 @@ class XmippProtHelixInitial(ProtReconstruct3D):
         group.addParam('heightFraction', params.FloatParam,
                        label='Height fraction',
                        help="")
-        group.addParam('helixParams', params.StringParam,
-                       label='Helix params: ',
-                       help="")
+        group.addParam('zetaRise', params.FloatParam,
+                       label='Zeta rise (A)',
+                       help="Zeta rise in Angstroms.")
+        group.addParam('phiAngle', params.FloatParam,
+                       label='Phi angle (deg)',
+                       help="Phi angle in degrees. Use positive values "
+                            "for right handed helixes. Negative left handed. ")
+        group.addParam('dihedral', params.BooleanParam,
+                      label='Is a dihedral helix?')
 
         form.addParallelSection(threads=2, mpi=0)
 
@@ -119,9 +126,9 @@ class XmippProtHelixInitial(ProtReconstruct3D):
         params =  '  -i %s' % self._getFileName('initial_volume')
         params += '  -o %s' % self._getFileName('helical_volume')
         params += ' --sampling %f' % sampling
-        params += ' --sym helicalDihedral'
+        params += ' --sym helical%s' % 'Dihedral' if self.dihedral else ''
         params += ' --heightFraction %f' % self.heightFraction
-        params += ' --helixParams %s' % self.helixParams
+        params += ' --helixParams %f %f' % (self.zetaRise, self.phiAngle)
 
         self.runJob('xmipp_transform_symmetrize', params)
         # xmipp_transform_symmetrize "-i" "rec_fourier.vol" "--sampling" "4.52" "--sym" "helicalDihedral"
@@ -135,6 +142,15 @@ class XmippProtHelixInitial(ProtReconstruct3D):
         
         self._defineOutputs(outputVolume=volume)
         self._defineSourceRelation(self.inputClasses2D, volume)
+
+        outputImages = self._createSetOfParticles()
+        outputImages.copyInfo(inputImages)
+        outputImages.copyItems(inputImages,
+                          updateItemCallback=self._createItemMatrix,
+                          itemDataIterator=md.iterRows(self._getFileName('input_xmd'),
+                                                       sortByLabel=md.MDL_ITEM_ID))
+        self._defineOutputs(outputParticles=outputImages)
+        self._defineSourceRelation(self.inputClasses2D, outputImages)
     
     #--------------------------- INFO functions -------------------------------------------- 
     def _validate(self):
@@ -150,6 +166,11 @@ class XmippProtHelixInitial(ProtReconstruct3D):
         return []
     
     #--------------------------- UTILS functions --------------------------------------------
+    def _createItemMatrix(self, item, row):
+        from pyworkflow.em.packages.xmipp3.convert import createItemMatrix
+        import pyworkflow.em as em
+        createItemMatrix(item, row, align=em.ALIGN_PROJ)
+
     def createHorizontalMask(self, inputClasses):
         """ Create an horizontal line mask to align with
         class averages and detect if there need to be
