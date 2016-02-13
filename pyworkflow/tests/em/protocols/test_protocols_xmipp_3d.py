@@ -631,28 +631,6 @@ class TestXmippConvertToPseudoatoms(TestXmippBase):
         self.assertIsNotNone(prot.outputPdb, "There was a problem with Convert to pseudoatoms output Pdb")
 
 
-class TestXmippProtHelicalParameters(TestXmippBase):
-    @classmethod
-    def setUpClass(cls):
-        setupTestProject(cls)
-        cls.ds = DataSet.getDataSet('general')
-        cls.vol = cls.ds.getFile('vol_helix')
-        cls.protImport = cls.runImportVolumes(cls.vol, 1.0)
-
-    def testHelicalParameters(self):
-        print "Run symmetrize helical"
-        protHelical = XmippProtHelicalParameters(cylinderOuterRadius=20,dihedral=True,rot0=50,rotF=70,rotStep=5,z0=5,zF=10,zStep=0.5)
-        protHelical.inputVolume.set(self.protImport.outputVolume)
-        self.proj.launchProtocol(protHelical, wait=True)
-
-        self.assertIsNotNone(protHelical.outputVolume, "There was a problem with Helical output volume")
-        self.assertIsNotNone(protHelical.deltaRot.get(), "Output delta rot is None")
-        self.assertIsNotNone(protHelical.deltaZ.get(), "Output delta Z is None")
-        print "protHelical.deltaRot.get() ", protHelical.deltaRot.get()
-        self.assertAlmostEqual(protHelical.deltaRot.get(), 59.59, delta=1, msg="Output delta rot is wrong")
-        self.assertAlmostEqual(protHelical.deltaZ.get(), 6.628, delta=0.2, msg="Output delta Z is wrong")
-
-
 class TestXmippRansacMda(TestXmippBase):
     @classmethod
     def setUpClass(cls):
