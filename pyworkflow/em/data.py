@@ -304,38 +304,6 @@ class SetOfDefocusGroups():
         return len(self._groups)
 
 
-class FSC(EMObject):
-    """Store a Fourier Shell Correlation"""
-    def __init__(self):
-        EMObject.__init__(self)
-        self._x = CsvList(pType=float)
-        self._y = CsvList(pType=float)
-
-    def loadFromMd(self, mdObj, labelX, labelY):
-        """
-        Fill the x and y data of the FSC from a metadata.
-        Params:
-            mdObj: either a metadata object of a filename
-            labelX: label used for frequency
-            labelY: label used for FSC values
-        """
-        #iterate through x and y and create csvLists
-        import metadata as md
-        self._x.clear()
-        self._y.clear()
-
-        for row in md.iterRows(mdObj):
-            self._x.append(row.getValue(labelX))
-            self._y.append(row.getValue(labelY))
-
-    def getData(self):
-        return self._x, self._y
-
-    def setData(self, xData, yData):
-        self._x.set(xData)
-        self._y.set(yData)
-
-
 class ImageDim(CsvList):
     """ Just a wrapper to a CsvList to store image dimensions
     as X, Y and Z. 
@@ -706,16 +674,16 @@ class SetOfImages(EMSet):
     """ Represents a set of Images """
     ITEM_TYPE = Image
     
-    def __init__(self, **args):
-        EMSet.__init__(self, **args)
+    def __init__(self, **kwargs):
+        EMSet.__init__(self, **kwargs)
         self._samplingRate = Float()
-        self._hasCtf = Boolean(args.get('ctf', False))
+        self._hasCtf = Boolean(kwargs.get('ctf', False))
         self._alignment = String(ALIGN_NONE)
         self._isPhaseFlipped = Boolean(False)
         self._isAmplitudeCorrected = Boolean(False)
         self._acquisition = Acquisition()
         self._firstDim = ImageDim() # Dimensions of the first image
-           
+
     def getAcquisition(self):
         return self._acquisition
         
@@ -772,7 +740,7 @@ class SetOfImages(EMSet):
     
     def setIsAmplitudeCorrected(self, value):
         self._isAmplitudeCorrected.set(value)
-        
+
     def append(self, image):
         """ Add a image to the set. """
         # If the sampling rate was set before, the same value
@@ -818,12 +786,16 @@ class SetOfImages(EMSet):
     def getSamplingRate(self):
         return self._samplingRate.get()
     
-    def writeStack(self, fnStack, orderBy='id', direction='ASC'):
+    def writeStack(self, fnStack, orderBy='id', direction='ASC',
+                   applyTransform=False):
         # TODO create empty file to improve efficiency
         ih = ImageHandler()
+        applyTransform = applyTransform and self.hasAlignment2D()
+
         for i, img in enumerate(self.iterItems(orderBy=orderBy,
                                                direction=direction)):
-            ih.convert(img, (i+1, fnStack))
+            transform = img.getTransform() if applyTransform else None
+            ih.convert(img, (i+1, fnStack), transform=transform)
     
     # TODO: Check whether this function can be used.
     # for example: protocol_apply_mask
@@ -960,7 +932,7 @@ class SetOfParticles(SetOfImages):
     def __init__(self, **args):
         SetOfImages.__init__(self, **args)
         self._coordsPointer = Pointer()
-        
+
     def hasCoordinates(self):
         return self._coordsPointer.hasValue()
     
@@ -1262,6 +1234,10 @@ class Transform(EMObject):
 
     def getMatrix(self):
         return self._matrix.getMatrix()
+
+    def getMatrixAsList(self):
+        """ Return the values of the Matrix as a list. """
+        return self._matrix.getMatrix().flatten().tolist()
     
     def setMatrix(self, matrix):
         self._matrix.setMatrix(matrix)
@@ -1691,10 +1667,44 @@ class MovieParticle(Particle):
     def setFrameId(self, frameId):
         self._frameId.set(frameId)
 
-
 class SetOfMovieParticles(SetOfParticles):
     """ This is just to distinguish the special case
     when the particles have been extracted from a set of movies.
     """
     ITEM_TYPE = MovieParticle
-    
+
+
+class FSC(EMObject):
+    """Store a Fourier Shell Correlation"""
+    def __init__(self, **kwargs):
+        EMObject.__init__(self, **kwargs)
+        self._x = CsvList(pType=float)
+        self._y = CsvList(pType=float)
+
+    def loadFromMd(self, mdObj, labelX, labelY):
+        """
+        Fill the x and y data of the FSC from a metadata.
+        Params:
+            mdObj: either a metadata object of a filename
+            labelX: label used for frequency
+            labelY: label used for FSC values
+        """
+        #iterate through x and y and create csvLists
+        import metadata as md
+        self._x.clear()
+        self._y.clear()
+
+        for row in md.iterRows(mdObj):
+            self._x.append(row.getValue(labelX))
+            self._y.append(row.getValue(labelY))
+
+    def getData(self):
+        return self._x, self._y
+
+    def setData(self, xData, yData):
+        self._x.set(xData)
+        self._y.set(yData)
+
+class SetOfFSCs(EMSet):
+    """Represents a set of Volumes"""
+    ITEM_TYPE = FSC

@@ -207,7 +207,10 @@ class Object(object):
     def getObjCreation(self):
         """ Return the stored creation time of the object. """
         return self._objCreation
-    
+
+    def getObjectCreationAsDate(self):
+        """ Return the stored creation time of the object as date """
+
     def strId(self):
         """String representation of id"""
         return str(self._objId)
@@ -434,7 +437,7 @@ class Object(object):
         # Split in possible tokens
         import re
         tokens = re.split('\W+', condition)
-        condStr = condition 
+        condStr = condition
         
         for t in tokens:
             if self.hasAttribute(t):
@@ -808,7 +811,7 @@ class List(Object, list):
     
     def _stringToIndex(self, strIndex):
         """ From the string index representation obtain the index.
-        For simetry the number in the index string will be 
+        For symetry the number in the index string will be
         decreased in 1.
         """
         return int(strIndex.split(self.ITEM_PREFIX)[1]) - 1
@@ -818,7 +821,7 @@ class List(Object, list):
         return list.__len__(self)
     
     def isEmpty(self):
-        return len(self) > 0
+        return len(self) == 0
     
     def clear(self):
         del self[:]
@@ -973,6 +976,9 @@ class Set(OrderedObject):
     def getSize(self):
         """Return the number of images"""
         return self._size.get()
+
+    def isEmpty(self):
+        return self.getSize() == 0
     
     def getFileName(self):
         if len(self._mapperPath):

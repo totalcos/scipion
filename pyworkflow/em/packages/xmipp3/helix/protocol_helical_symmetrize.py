@@ -25,6 +25,7 @@
 # *
 # **************************************************************************
 
+import pyworkflow
 import pyworkflow.object as pwobj
 from pyworkflow.em import *  
 from xmipp import MetaData, MDL_ANGLE_ROT, MDL_SHIFT_Z
@@ -37,7 +38,6 @@ from helix import HelicalFinder
 
 class XmippProtHelicalSymmetrize(ProtPreprocessVolumes):
     """ Estimate helical parameters and symmetrize.
-    
         Helical symmetry is defined as:
         V(r,rot,z)=V(r,rot+k*DeltaRot,z+k*Deltaz).
     """

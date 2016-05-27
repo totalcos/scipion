@@ -348,6 +348,7 @@ class ProtGctf(em.ProtCTFMicrographs):
         self._args += "--plot_res_ring %d " % (1 if self.plotResRing else 0)
         self._args += "--gid %d " % self.GPUCore.get()
         self._args += "--bfac %d " % self.bfactor.get()
+        self._args += "--B_resH %f " % (2 * self._params['sampling'])
         self._args += "--do_basic_rotave %d " % ( 1 if self.doBasicRotave else 0)
         self._args += "--overlap %f " % self.overlap.get()
         self._args += "--convsize %d " % self.convsize.get()
@@ -388,7 +389,7 @@ class ProtGctf(em.ProtCTFMicrographs):
     def _getProgram(self):
         """ Return the program binary that will be used. """
         binary = os.environ['GCTF']
-        program = join(os.environ['GCTF_HOME'], basename(binary))
+        program = join(os.environ['GCTF_HOME'], 'bin', basename(binary))
 
         return program
 
