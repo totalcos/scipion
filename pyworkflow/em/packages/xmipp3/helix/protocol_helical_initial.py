@@ -126,14 +126,12 @@ class XmippProtHelixInitial(ProtReconstruct3D):
         params =  '  -i %s' % self._getFileName('initial_volume')
         params += '  -o %s' % self._getFileName('helical_volume')
         params += ' --sampling %f' % sampling
-        params += ' --sym helical%s' % 'Dihedral' if self.dihedral else ''
+        params += ' --sym helical%s' % ('Dihedral' if self.dihedral else '')
         params += ' --heightFraction %f' % self.heightFraction
         params += ' --helixParams %f %f' % (self.zetaRise, self.phiAngle)
 
         self.runJob('xmipp_transform_symmetrize', params)
-        # xmipp_transform_symmetrize "-i" "rec_fourier.vol" "--sampling" "4.52" "--sym" "helicalDihedral"
-        #  "--heightFraction" "0.63" "--helixParams" "29.535039" "-67.153007" "-o" "rec_fourier_sym.vol"
-            
+
     def createOutputStep(self):
         inputImages = self.inputClasses2D.get().getImages()
         volume = Volume()
