@@ -21,15 +21,14 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 
 import os
 from pyworkflow.viewer import DESKTOP_TKINTER, WEB_DJANGO, ProtocolViewer
 from protocol_structure_mapping import XmippProtStructureMapping
-import pylab
-import matplotlib.pyplot as plt
+from pyworkflow.gui.plotter import plt
 import numpy as np
 from mpl_toolkits.mplot3d import proj3d
 import pyworkflow.protocol.params as params
@@ -134,8 +133,12 @@ class XmippProtStructureMappingViewer(ProtocolViewer):
         labels = []
         
         for voli in volList:
-            labels.append("%s"%voli.getObjLabel())
-            count += 1
+            if not voli.getObjLabel():
+                count+=1
+                labels.append("vol_%02d"%count)                            
+            else:
+                labels.append("%s"%voli.getObjLabel())
+                count += 1              
         
         nComponent = self.numberOfDimensions.get()
         
@@ -173,7 +176,7 @@ class XmippProtStructureMappingViewer(ProtocolViewer):
                
         else: 
                         
-            fig = pylab.figure()
+            fig = plt.figure()
             ax = fig.add_subplot(111, projection = '3d')
            
             ax.scatter(data3N[:, 0], data3N[:, 1], data3N[:, 2], marker = 'o', c='g')
@@ -207,7 +210,7 @@ class XmippProtStructureMappingViewer(ProtocolViewer):
                     label.update_positions(fig.canvas.renderer)
                 fig.canvas.draw()
             fig.canvas.mpl_connect('button_release_event', update_position)
-            pylab.show()
+            plt.show()
         
         return plot
         

@@ -20,7 +20,7 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 """
@@ -40,6 +40,7 @@ import pyworkflow.gui.dialog as dialog
 class LabelsTreeProvider(TreeProvider):
     """ Populate Tree from Labels. """
     def __init__(self, objList=None):
+        TreeProvider.__init__(self)
         self.objList = objList
         self._parentDict = {}
 

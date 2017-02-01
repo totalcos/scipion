@@ -25,7 +25,7 @@
 # *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
-
+from pyworkflow import VERSION_1_1
 from pyworkflow.protocol.params import PointerParam, EnumParam, BooleanParam
 
 from pyworkflow.em.protocol import ProtOperateParticles
@@ -47,6 +47,7 @@ class XmippProtSubtractProjection(ProtOperateParticles):
         refine only the genetic material.
         """
     _label = 'subtract projection'
+    _version = VERSION_1_1
 
     CORRECT_NONE = 0
     CORRECT_FULL_CTF = 1
@@ -127,7 +128,12 @@ class XmippProtSubtractProjection(ProtOperateParticles):
             self.mask = xmipp.Image(maskName)
             self.mask.convert2DataType(xmipp.DT_DOUBLE)
             self.vol.inplaceMultiply(self.mask)
-
+        padding = 2
+        maxFreq = 0.5
+        splineDegree = 2
+        ###
+        self.fourierProjectVol = xmipp.FourierProjector(self.vol, padding, maxFreq, splineDegree)
+        ###
         partSet = self.inputParticles.get()
         nPart = len(partSet)
         numberOfTasks = min(nPart, max(self.numberOfThreads.get()-1, 1))
@@ -168,13 +174,18 @@ class XmippProtSubtractProjection(ProtOperateParticles):
     def projectStep(self, start, end, samplingRate, threadNumber):
         # Project
         md = xmipp.MetaData(self._getInputParticlesSubsetFn(threadNumber))
+        ##
+        projection = xmipp.Image()
+        projection.setDataType(xmipp.DT_DOUBLE)
+        ##
         for id in md:
             rot  = md.getValue(xmipp.MDL_ANGLE_ROT,  id)
             tilt = md.getValue(xmipp.MDL_ANGLE_TILT, id)
             psi  = md.getValue(xmipp.MDL_ANGLE_PSI,  id)
 
-            projection =self.vol.projectVolumeDouble(rot, tilt, psi)
-
+            ##projection =self.vol.projectVolumeDouble(rot, tilt, psi)
+            self.fourierProjectVol.projectVolume(projection, rot, tilt, psi)
+            ##
             # Apply CTF
             if self.projType == self.CORRECT_NONE:
                 pass

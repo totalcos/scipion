@@ -10,8 +10,10 @@ import unittest
 from tempfile import NamedTemporaryFile
 from time import time
 
+from pyworkflow.tests import *
 from xmipp import *
 from pyworkflow.em.packages.xmipp3 import getXmippPath
+import pyworkflow.utils as pwutils
 
 
 
@@ -39,6 +41,9 @@ def binaryFileComparison(nameo, namet):
 
 
 class TestXmippPythonInterface(unittest.TestCase):
+    
+    _labels = [WEEKLY]
+    
     testsPath = getXmippPath("resources", "test")
     # Temporary filenames used
 
@@ -388,6 +393,23 @@ class TestXmippPythonInterface(unittest.TestCase):
         vol.convert2DataType(DT_DOUBLE)
         proj=vol.projectVolumeDouble(0.,0.,0.)
         self.assertEqual(1,1)
+
+    def test_Image_projectFourier(self):
+        vol = Image(testFile('progVol.vol'))
+        vol.convert2DataType(DT_DOUBLE)
+        proj = Image()
+        proj.setDataType(DT_DOUBLE)
+
+        padding = 2
+        maxFreq = 0.5
+        splineDegree = 2
+        vol.write('/tmp/vol1.vol')
+        fp = FourierProjector(vol, padding, maxFreq, splineDegree)
+        # After creating the f
+        fp.projectVolume(proj, 0, 0, 0)
+
+        #vol.write('/tmp/vol2.vol')
+        proj.write('/tmp/kk.spi')
 
     def test_Image_read(self):
         imgPath = testFile("tinyImage.spi")
@@ -1187,3 +1209,14 @@ _rlnDefocusU #2
         total = md.getValue(MDL_ANGLE_DIFF, id)
         self.assertAlmostEqual(total, 5.23652, 4)
 
+    def test_SymList_getSymmetryMatrices(self):
+        try:
+            SL = SymList()
+            _symList = SL.getSymmetryMatrices("C4")
+        except Exception as e:
+            print e.message
+        m = _symList[1]
+        l = [[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]
+        self.assertAlmostEqual(m[1][1],l[1][1])
+        self.assertAlmostEqual(m[0][0],l[0][0])
+        self.assertAlmostEqual(m[1][1],0.)

@@ -20,16 +20,16 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
-
+from pyworkflow import VERSION_1_1
 from pyworkflow.protocol.constants import STEPS_PARALLEL
 import pyworkflow.protocol.params as params
 
 import pyworkflow.em as em
 import pyworkflow.em.metadata as md
-
+from convert import locationToXmipp
 
 
 class XmippProtMultipleFSCs(em.ProtAnalysis3D):
@@ -38,6 +38,7 @@ class XmippProtMultipleFSCs(em.ProtAnalysis3D):
     A mask can be provided and the volumes are aligned by default.
     """
     _label = 'multiple fscs'
+    _version = VERSION_1_1
 
     def __init__(self, **args):
         em.ProtAnalysis3D.__init__(self, **args)
@@ -107,13 +108,12 @@ class XmippProtMultipleFSCs(em.ProtAnalysis3D):
             self._maskVolume(fnRef)
 
     def compareVolumeStep(self, volLoc, i):
-        ih = em.ImageHandler()
         fnRef = self._getExtraPath("reference.vol")
         sampling = self.referenceVolume.get().getSamplingRate()
         fnRoot = self._getExtraPath("volume_%02d" % i)
         fnVol = fnRoot + ".vol"
-        ih.convert(volLoc, fnVol)
-
+        self.runJob("xmipp_image_convert","-i %s -o %s -t vol"%(locationToXmipp(volLoc[0],volLoc[1]),fnVol))
+        
         # Resize if the volume has different size than the reference
         self._resizeVolume(fnVol)
 

@@ -272,7 +272,7 @@ bool MetaData::initGetRow( bool addWhereClause) const
     return(success);
 }
 
-bool MetaData::execGetRow(MDRow &row)
+bool MetaData::execGetRow(MDRow &row) const
 {
 	bool success=true;
 	std::vector<MDObject> mdValues;		// Vector to store values.
@@ -299,7 +299,7 @@ bool MetaData::execGetRow(MDRow &row)
     return(success);
 }
 
-void 	MetaData::finalizeGetRow(void)
+void 	MetaData::finalizeGetRow(void) const
 {
 	myMDSql->finalizePreparedStmt();
 }
@@ -317,7 +317,7 @@ bool MetaData::getRow(MDRow &row, size_t id) const
     return true;
 }
 
-bool MetaData::getRow2(MDRow &row, size_t id)
+bool MetaData::getRow2(MDRow &row, size_t id) const
 {
 	bool success=true;
 
@@ -334,7 +334,7 @@ bool MetaData::getRow2(MDRow &row, size_t id)
 		success = execGetRow( row);
 
 	    // Finalize SELECT.
-	    myMDSql->finalizePreparedStmt();
+		finalizeGetRow();
 	}
 
 	return(success);
@@ -414,10 +414,17 @@ bool MetaData::execSetRow(const MDRow &row, size_t id)
 	return(success);
 }
 
+void 	MetaData::finalizeSetRow(void)
+{
+	myMDSql->finalizePreparedStmt();
+}
 
-void MetaData::setRow(const MDRow &row, size_t id)
+
+bool MetaData::setRow(const MDRow &row, size_t id)
 {
     SET_ROW_VALUES(row);
+
+    return(true);
 }
 
 bool MetaData::setRow2(const MDRow &row, size_t id)
@@ -432,7 +439,7 @@ bool MetaData::setRow2(const MDRow &row, size_t id)
 		success = execSetRow( row, id);
 
 		// Finalize UPDATE.
-		myMDSql->finalizePreparedStmt();
+		finalizeSetRow();
 	}
 
 	return(success);
@@ -509,6 +516,11 @@ bool MetaData::execAddRow(const MDRow &row)
     return(success);
 }
 
+void 	MetaData::finalizeAddRow(void)
+{
+	myMDSql->finalizePreparedStmt();
+}
+
 size_t MetaData::addRow(const MDRow &row)
 {
     size_t id = addObject();
@@ -518,22 +530,29 @@ size_t MetaData::addRow(const MDRow &row)
 }
 
 
-bool MetaData::addRow2(const MDRow &row)
+size_t MetaData::addRow2(const MDRow &row)
 {
-	bool	success=true;				// Return value.
+	size_t id;		// Inserted row id.
 
 	// Initialize INSERT.
-	success = initAddRow( row);
-	if (success)
+	if (initAddRow( row))
 	{
 		// Execute INSERT.
-		success = execAddRow( row);
+		if (execAddRow( row))
+		{
+			// Get last inserted row id.
+			id = myMDSql->getObjId();
+		}
+		else
+		{
+			id = BAD_OBJID;
+		}
 
 		// Finalize INSERT.
-		myMDSql->finalizePreparedStmt();
+		finalizeAddRow();
 	}
 
-	return(success);
+	return(id);
 }
 
 MetaData::MetaData()
@@ -2109,7 +2128,7 @@ void MetaData::replace(const MDLabel label, const String &oldStr, const String &
         REPORT_ERROR(ERR_MD, "MetaData::replace: error doing operation");
 }
 
-void MetaData::randomize(MetaData &MDin)
+void MetaData::randomize(const MetaData &MDin)
 {
     static bool randomized = false;
     if (!randomized)
@@ -2238,6 +2257,16 @@ void MetaData::selectSplitPart(const MetaData &mdIn, size_t n, size_t part, cons
         REPORT_ERROR(ERR_MD, "selectSplitPart: 'part' should be between 0 and n-1");
     _selectSplitPart(mdIn, n, part, mdSize, sortLabel);
 
+}
+
+void MetaData::selectRandomSubset(const MetaData &mdIn, size_t numberOfObjects, const MDLabel sortLabel)
+{
+    clear();
+
+    MetaData mdAux, mdAux2;
+    mdAux.randomize(mdIn);
+    mdAux2.selectPart(mdAux, 0, numberOfObjects);
+    sort(mdAux2,sortLabel);
 }
 
 void MetaData::selectPart(const MetaData &mdIn, size_t startPosition, size_t numberOfObjects,
