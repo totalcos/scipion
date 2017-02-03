@@ -89,12 +89,13 @@ class HelicalFinder():
     def symmetrize(self, fnVol, fnParams, fnOut):
         rot0, z0 = self._paramsFromMd(fnParams)
         args = self._commonArgs(fnVol, fnOut, maskArgs=False)
-        args += " --helixParams %f %f -o %s" % (z0, rot0)
+        args += " --helixParams %f %f " % (z0, rot0)
+
         self.runJob('xmipp_transform_symmetrize', args)
 
         if self.hasMask():
             args = "-i %s %s" % (fnVol, self._maskArgs())
-            self.runJob('xmipp_transform_mask',args)
+            self.runJob('xmipp_transform_mask', args)
 
     #--------- Internal functions -----------------
     def _maskArgs(self):
@@ -111,8 +112,11 @@ class HelicalFinder():
         args =  ' -i %s -o %s --sym %s' % (inFn, outFn, self.getSymmetry())
         args += ' --heightFraction %f' % self.heightFraction
         args += ' --sampling %f' % self.sampling
+
         if maskArgs:
             args += self._maskArgs()
+
+        return args
 
     def _paramsFromMd(self, fnMd):
         row = md.getFirstRow(fnMd)

@@ -43,45 +43,53 @@ class XmippProtHelicalSymmetrize(ProtPreprocessVolumes):
     """
     _label = 'helical symmetrize'
 
-    #--------------------------- DEFINE param functions --------------------------------------------
+    #--------------------------- DEFINE param functions ------------------------
     def _defineParams(self, form):
         form.addSection(label='General parameters')
         form.addParam('inputVolume', PointerParam, pointerClass="Volume",
                       label='Input volume')
-        form.addParam('cylinderInnerRadius', IntParam, default=-1,
-                      label='Cylinder inner radius',
-                      help="The helix is supposed to occupy this radius in "
-                           "voxels around the Z axis. Leave it as -1 for "
-                           "symmetrizing the whole volume")
-        form.addParam('cylinderOuterRadius',IntParam,
-                      label='Cylinder outer radius', default=-1,
-                      help="The helix is supposed to occupy this radius in voxels "
-                           "around the Z axis. Leave it as -1 for symmetrizing "
-                           "the whole volume")
+        l = form.addLine('Cylinder radius',
+                         help="The helix is supposed to occupy this radius in "
+                              "voxels around the Z axis. Leave it as -1 for "
+                              "symmetrizing the whole volume"
+                          )
+        l.addParam('cylinderInnerRadius', IntParam, default=-1, label='inner')
+        l.addParam('cylinderOuterRadius',IntParam, default=-1, label='outer')
+
         form.addParam('dihedral',BooleanParam, default=False,
                       label='Apply dihedral symmetry')
-        form.addParam('forceDihedralX',BooleanParam, default=False,
+        form.addParam('forceDihedralX', BooleanParam, default=False,
                       expertLevel=LEVEL_ADVANCED,
                       label='Force the dihedral axis to be in X',
                       help="If this option is chosen, then the dihedral axis is "
                            "not searched and it is assumed that it is around X.")
 
-        form.addSection(label='Search limits')
-        form.addParam('heightFraction',FloatParam,default=0.9,label='Height fraction',
-                      help="The helical parameters are only sought using the fraction indicated by this number. " \
-                           "In this way, you can avoid including planes that are poorly resolved at the extremes of the volume. " \
-                           "However, note that the algorithm can perfectly work with a fraction of 1.")
-        form.addParam('rot0',FloatParam,default=0,label='Minimum rotational angle',help="In degrees")
-        form.addParam('rotF',FloatParam,default=360,label='Maximum rotational angle',help="In degrees")
-        form.addParam('rotStep',FloatParam,default=5,label='Angular step',help="In degrees")
-        form.addParam('z0',FloatParam,default=0,label='Minimum shift Z',help="In Angstroms")
-        form.addParam('zF',FloatParam,default=10,label='Maximum shift Z',help="In Angstroms")
-        form.addParam('zStep',FloatParam,default=0.5,label='Shift step',help="In Angstroms")
-        self.deltaZ=Float()
-        self.deltaRot=Float()
+        g = form.addGroup('Search')
+        g.addParam('heightFraction',FloatParam,default=0.9,
+                      label='Height fraction',
+                      help="The helical parameters are only sought using the "
+                           "fraction indicated by this number. "
+                           "In this way, you can avoid including planes that "
+                           "are poorly resolved at the extremes of the volume. "
+                           "However, note that the algorithm can perfectly "
+                           "work with a fraction of 1.")
+
+        l = g.addLine('Rotational angle (deg)', help="")
+        l.addParam('rot0', FloatParam, default=0,label='min')
+        l.addParam('rotF', FloatParam, default=360,label='max')
+        l.addParam('rotStep', FloatParam, default=5, label='step')
+
+        l = g.addLine('Shift Z (A)', help="")
+        l.addParam('z0', FloatParam, default=0, label='min')
+        l.addParam('zF', FloatParam, default=10, label='max')
+        l.addParam('zStep', FloatParam, default=0.5, label='step')
+
+        self.deltaZ = Float()
+        self.deltaRot = Float()
+
         form.addParallelSection(threads=4, mpi=0)
 
-    #--------------------------- INSERT steps functions --------------------------------------------
+    #--------------------------- INSERT steps functions ------------------------
     def _insertAllSteps(self):
         self._insertFunctionStep('convertInputStep')
         self._insertFunctionStep('coarseSearchStep')
@@ -97,21 +105,24 @@ class XmippProtHelicalSymmetrize(ProtPreprocessVolumes):
         mask = (self.cylinderInnerRadius.get(),
                 self.cylinderOuterRadius.get(),
                 self.height)
-        self.helical = HelicalFinder(self, inputVol.getSampling(),
-                                     self.heightFactor.get(),
+        self.helical = HelicalFinder(self, inputVol.getSamplingRate(),
+                                     self.heightFraction.get(),
                                      self.dihedral.get(), mask)
 
-    #--------------------------- STEPS functions --------------------------------------------
+    #--------------------------- STEPS functions -------------------------------
     def convertInputStep(self):
         if self.dihedral:
             if not self.forceDihedralX:
                 self.runJob("xmipp_transform_symmetrize",
-                            "-i %s -o %s --sym dihedral --dont_wrap" % (self.fnVol, self.fnVolSym))
+                            "-i %s -o %s --sym dihedral --dont_wrap"
+                            % (self.fnVol, self.fnVolSym))
             else:
                 self.runJob("xmipp_transform_geometry",
-                            "-i %s -o %s --rotate_volume axis 180 1 0 0" % (self.fnVol, self.fnVolSym))
+                            "-i %s -o %s --rotate_volume axis 180 1 0 0"
+                            % (self.fnVol, self.fnVolSym))
                 self.runJob("xmipp_image_operate",
-                            "-i %s --plus %s -o %s" % (self.fnVol, self.fnVolSym, self.fnVolSym))
+                            "-i %s --plus %s -o %s"
+                            % (self.fnVol, self.fnVolSym, self.fnVolSym))
                 self.runJob("xmipp_image_operate",
                             "-i %s --mult 0.5" % self.fnVolSym)
         else:
@@ -120,6 +131,7 @@ class XmippProtHelicalSymmetrize(ProtPreprocessVolumes):
     def coarseSearchStep(self):
         z = (self.z0.get(), self.zF.get(), self.zStep.get())
         rot = (self.rot0.get(), self.rotF.get(), self.rotStep.get())
+
         self.helical.searchCoarse(self.fnVolSym,
                                   self._getExtraPath('coarseParams.xmd'),
                                   z, rot, self.numberOfThreads.get())
