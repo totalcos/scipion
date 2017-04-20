@@ -21,7 +21,7 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 
@@ -38,10 +38,10 @@ from protocol_base import ProtRelionBase
 from convert import getEnviron
 
 class ProtRelionPolish(ProtProcessParticles, ProtRelionBase):
-    """    
-    Reconstruct a volume using Relion from a given set of particles.
-    The alignment parameters will be converted to a Relion star file
-    and used as direction projections to reconstruct.
+    """
+    This Relion protocol tracks particle movement in movie frames,
+    applies a resolution and dose-dependent weighting scheme
+    for each frame and finally sums them together.
     """
     _label = 'particle polishing'
     
@@ -49,7 +49,8 @@ class ProtRelionPolish(ProtProcessParticles, ProtRelionBase):
 
     def _initialize(self):
         """ This function is mean to be called after the 
-        working dir for the protocol have been set. (maybe after recovery from mapper)
+        working dir for the protocol have been set.
+        (maybe after recovery from mapper)
         """
         refineRun = self.refineRun.get()
         refineRun._initialize() # load filenames stuff
@@ -68,10 +69,11 @@ class ProtRelionPolish(ProtProcessParticles, ProtRelionBase):
     def _defineParams(self, form):
         form.addSection(label='Input')
         
-        form.addParam('refineRun', PointerParam, pointerClass='ProtRelionRefine3D',              
-              label='Movie particles refine run',
-              help='Select the Relion 3D auto-refine run where \n'
-                   'the movie particles where refined.')
+        form.addParam('refineRun', PointerParam,
+                      pointerClass='ProtRelionRefine3D',
+                      label='Movie particles refine run',
+                      help='Select the Relion 3D auto-refine run where \n'
+                           'the movie particles where refined.')
         form.addParam('maskRadius', IntParam, default=100,
                       label='Particle mask RADIUS (px)',
                       help='Radius of the circular mask that will be used '
@@ -80,35 +82,82 @@ class ProtRelionPolish(ProtProcessParticles, ProtRelionBase):
         group = form.addGroup('Movement')
         group.addParam('linerFitParticleMovements', BooleanParam, default=True,
                       label='Linear fit particle movements?',
-                      help='If set to Yes, then the program will fit linear tracks (in X-Y and in time) through the estimated movie tracks in the input STAR file. For small particles (e.g. < 1MDa) this will lead to more robust beam-induced movement modelling. Because particles that are close to each other on a micrograph often move in similar directions, the estimated tracks from neighbouring particles may also be included in the fitting of each particle. Again, in particular for smaller particles this may improve the robustness of the fits.')
-        #NOTE: we do not need to ask for running average windows as in relion gui
-        # we can take it from the previous run
+                      help='If set to Yes, then the program will fit linear '
+                           'tracks (in X-Y and in time) through the estimated '
+                           'movie tracks in the input STAR file. For small '
+                           'particles (e.g. < 1MDa) this will lead to more '
+                           'robust beam-induced movement modelling. Because '
+                           'particles that are close to each other on a '
+                           'micrograph often move in similar directions, the '
+                           'estimated tracks from neighbouring particles may '
+                           'also be included in the fitting of each particle. '
+                           'Again, in particular for smaller particles this '
+                           'may improve the robustness of the fits.')
+        #NOTE: we do not need to ask for running average windows as in relion
+        # gui we can take it from the previous run
         group.addParam('stddevParticleDistance', IntParam, default=100,
                        condition='linerFitParticleMovements',
                        label='Stddev on particle distance (px)',
-                       help='This value determines how much neighbouring particles contribute to the fit of the movements of each particle. This value is the standard deviation of a Gaussian on the inter-particle distance. Larger values mean that particles that are further away still contribute more. Particles beyond 3 standard deviations are excluded from the fit. Very large values will lead to all fitted tracks pointing in the same direction. A value of zero means that each particle is fitted independently.')
-        
+                       help='This value determines how much neighbouring '
+                            'particles contribute to the fit of the movements '
+                            'of each particle. This value is the standard '
+                            'deviation of a Gaussian on the inter-particle '
+                            'distance. Larger values mean that particles that '
+                            'are further away still contribute more. Particles '
+                            'beyond 3 standard deviations are excluded from '
+                            'the fit. Very large values will lead to all '
+                            'fitted tracks pointing in the same direction. '
+                            'A value of zero means that each particle is '
+                            'fitted independently.')
     
         group = form.addGroup('Damage')
         group.addParam('performBfactorWeighting', BooleanParam, default=True,
                       label='Perform B-factor weighting?',
-                      help='If set to Yes, then running averages of the individual frames of recorded movies will also be aligned rotationally. \n'
-                           'If one wants to perform particle polishing, then rotational alignments of the movie frames is NOT necessary and will only take more computing time.')
-        #NOTE: we do not need to ask for running average windows as in relion gui
-        # we can take it from the previous run
+                      help='If set to Yes, then running averages of the '
+                           'individual frames of recorded movies will also be '
+                           'aligned rotationally. \n If one wants to perform '
+                           'particle polishing, then rotational alignments of '
+                           'the movie frames is NOT necessary and will only '
+                           'take more computing time.')
+        #NOTE: we do not need to ask for running average windows as in relion
+        # gui we can take it from the previous run
         group.addParam('highresLimitPerFrameMaps', FloatParam, default=5,
                        condition='performBfactorWeighting',
                        label='Highres-limit per-frame maps (A)',
-                       help='To estimate the resolution and dose dependency of the radiation damage, the program will calculate reconstructions from all first movie frames, second movie frames, etc. These per-frame reconstructions will have lower resolution than the reconstruction from all-frames. To speed up the calculations (and reduce memory requirements), the per-frame reconstructions may be limited in resolution using this parameter. One can inspect the output STAR files of the per-frame reconstructions to check afterwards that this value was not chosen lower than the actual resolution of these reconstruction')
+                       help='To estimate the resolution and dose dependency of '
+                            'the radiation damage, the program will calculate '
+                            'reconstructions from all first movie frames, '
+                            'second movie frames, etc. These per-frame '
+                            'reconstructions will have lower resolution than '
+                            'the reconstruction from all-frames. To speed up '
+                            'the calculations (and reduce memory '
+                            'requirements), the per-frame reconstructions may '
+                            'be limited in resolution using this parameter. '
+                            'One can inspect the output STAR files of the '
+                            'per-frame reconstructions to check afterwards '
+                            'that this value was not chosen lower than the '
+                            'actual resolution of these reconstruction')
         group.addParam('lowresLimitBfactorEstimation', FloatParam, default=20,
                        condition='performBfactorWeighting',
                        label='Lowres-limit B-factor estimation (A)',
-                       help='This value describes the lowest resolution that is included in the B-factor estimation of the per-frame reconstructions. Because the power spectrum of per-frame reconstructions is compared to the power spectrum of the reconstruction from all frames, a much lower value than the 10A described in the Rosenthal and Henderson (2003) paper in JMB can be used. Probably a value around 20A is still OK.')
+                       help='This value describes the lowest resolution that '
+                            'is included in the B-factor estimation of the '
+                            'per-frame reconstructions. Because the power '
+                            'spectrum of per-frame reconstructions is compared '
+                            'to the power spectrum of the reconstruction from '
+                            'all frames, a much lower value than the 10A '
+                            'described in the Rosenthal and Henderson (2003) '
+                            'paper in JMB can be used. Probably a value around '
+                            '20A is still OK.')
            
-        group.addParam('maskForReconstructions', PointerParam, pointerClass='VolumeMask',
-                      label='Mask for the reconstructions', allowsNull=True,
-                      help='A continuous mask with values between 0 (solvent) and 1 (protein). You may provide the same map that was obtained in the post-processing of the corresponding auto-refine jobs before the movie processing.') 
-
+        group.addParam('maskForReconstructions', PointerParam,
+                       pointerClass='VolumeMask',
+                       label='Mask for the reconstructions', allowsNull=True,
+                       help='A continuous mask with values between 0 (solvent) '
+                            'and 1 (protein). You may provide the same map '
+                            'that was obtained in the post-processing of the '
+                            'corresponding auto-refine jobs before the movie '
+                            'processing.')
         self.addSymmetry(group)
         
         form.addParam('extraParams', StringParam, default='',
@@ -163,7 +212,7 @@ class ProtRelionPolish(ProtProcessParticles, ProtRelionBase):
         """
         from pyworkflow.utils.path import copyTree
         copyTree(self.refineRun.get()._getExtraPath(), self._getExtraPath())
-        self.runJob(self._getProgram('relion_particle_polish'), params, env=getEnviron(self.refineRun.get().useRelion14))
+        self.runJob(self._getProgram('relion_particle_polish'), params)
     
     def organizeDataStep(self):
         from pyworkflow.utils import moveFile
@@ -216,9 +265,12 @@ class ProtRelionPolish(ProtProcessParticles, ProtRelionBase):
         return summary message for NORMAL EXECUTION. 
         """
         errors = []
+        self.validatePackageVersion('RELION_HOME', errors)
+
         if self.performBfactorWeighting:
             if self.maskForReconstructions.get() is None:
                 errors.append('You should select a *mask* if performing b-factor weighting.')
+
         return errors
     
     def _summary(self):

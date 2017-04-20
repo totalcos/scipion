@@ -26,11 +26,11 @@
 ;
 ; INPUT FILES:
 ;   [params]                ../params                             Input params file  
-;   [vol_orig]              ../Reconstruction/vol01               Input volume file  
-;   [sel_group_orig]        ../Reconstruction/sel_group_cclim     Group selection file
-;   [sel_particles_orig]    ../Reconstruction/sel_particles_***   Particle selection files 
-;   [group_align_orig]      ../Alignment/align_01_***             Alignment parameter files 
-;   [unaligned_images]      ../Alignment/data***                  Original unaligned images stack
+;   [vol_orig]              ../vol01                              Input volume file
+;   [sel_group_orig]        ../sel_group                          Group selection file
+;   [sel_particles_orig]    ../group***_selfile                   Particle selection files
+;   [group_align_orig]      ../group***_align                     Alignment parameter files
+;   [unaligned_images]      ../group***_stack                     Original unaligned images stack
 ;
 ; PROCEDURES CALLED:
 ;    refine_settings          <a href="./refine_settings.pam">refine_settings.pam</a>
@@ -51,12 +51,13 @@
    TR OFF                     ; Loop info turned off
  MD
    VB OFF                     ; File info turned off
- MD
-   SET MP                     ; Use all available OMP processors
-   0
 
  ; Input initial parameters & file names
- @refine_settings([pixsiz],[r2],[alignsh],[prj-radius],[iter1],[iter-end],[lambda],[small-ang],[winsize],[converg])
+ @refine_settings([pixsiz],[r2],[alignsh],[prj-radius],[iter1],[iter-end],[lambda],[small-ang],[winsize],[converg],[nummps])
+
+ MD
+   SET MP                     ; Use all available OMP processors
+   [nummps]
 
  ; Redefine [temp_local_dir] location to current work directory for non-PubSub run
  GLO [temp_local_dir] = '[temp_work_dir]'

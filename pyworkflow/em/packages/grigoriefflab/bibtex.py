@@ -21,11 +21,11 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 """
-Bibtex string file for Xmipp package.
+Bibtex string file for packages from Grigorieff lab.
 """
 
 _bibtexStr = """
@@ -134,7 +134,32 @@ author = "Lyumkis, Dmitry  and Brilot, Axel F.  and Theobald, Douglas L.  and Gr
 keywords = "Electron microscopy, Maximum likelihood, Classification, Single particle, Protein structure "
 }
 
+@Article{Rohou2015,
+   Author="Rohou, A.  and Grigorieff, N. ",
+   Title="{{C}{T}{F}{F}{I}{N}{D}4: {F}ast and accurate defocus estimation from electron micrographs}",
+   Journal="J. Struct. Biol.",
+   Year="2015",
+   Volume="192",
+   Number="2",
+   Pages="216--221",
+   Month="Nov",
+   doi = "http://dx.doi.org/10.1016/j.jsb.2015.08.008",
+   url = "http://www.sciencedirect.com/science/article/pii/S1047847715300460"
+}
 
+@article{Grant2015,
+title = "Automatic estimation and correction of anisotropic magnification distortion in electron microscopes ",
+journal = "JSB ",
+volume = "192",
+number = "2",
+pages = "204 - 208",
+year = "2015",
+note = "",
+doi = "http://dx.doi.org/10.1016/j.jsb.2015.08.006",
+url = "http://www.sciencedirect.com/science/article/pii/S1047847715300447",
+author = "Grant, Timothy and Grigorieff, Nikolaus",
+keywords = "Electron cryo-microscopy, Resolution, Magnification anisotropy, Image correction "
+}
 """
 
 

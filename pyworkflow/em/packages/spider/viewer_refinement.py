@@ -20,13 +20,13 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 from pyworkflow.em.packages.eman2.viewer import ANGDIST_CHIMERA
 """
-This module implement the wrappers around xmipp_showj
-visualization program.
+This module implements visualization program
+for Spider refinement protocols.
 """
 
 import os
@@ -63,9 +63,6 @@ VOLNAMES = {
             VOL_FILTERED: 'vol%02d_filtered'
             }
 
-
-
-    
 class SpiderViewerRefinement(ProtocolViewer):
     """ Wrapper to visualize different type of objects
     with the Xmipp program xmipp_showj. """
@@ -184,7 +181,7 @@ Examples:
         self.createVolumesSqlite(self.getVolumeNames(), 
                                  volSqlite, samplingRate)
         
-        return [self.getObjectView(volSqlite)]
+        return [self.objectView(volSqlite)]
         
     def getVolumeNames(self, it=None):
         """ If it is not none, return the volume of this iteration only. """

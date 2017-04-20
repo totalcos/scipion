@@ -21,12 +21,9 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
-"""
-This sub-package contains protocol for particles filters operations
-"""
 
 from pyworkflow.utils.path import getLastFile
 from protocol_align_base import SpiderProtAlign
@@ -35,11 +32,11 @@ from protocol_align_base import SpiderProtAlign
       
 class SpiderProtAlignAPSR(SpiderProtAlign):
     """ 
-    Reference-free alignment shift and rotational alignment of an image series. 
-    Uses Spider AP SR command.
+    Reference-free alignment (both translational and rotational)
+    of an image series. Uses Spider AP SR command.
     
-    See detailed description at [[http://spider.wadsworth.org/spider_doc/spider/docs/man/apsr.html][SPIDER's AP SR online manual]]
-
+    See detailed description at:
+    [[http://spider.wadsworth.org/spider_doc/spider/docs/man/apsr.html][SPIDER's AP SR online manual]]
     """
     _label = 'align apsr'
     
@@ -48,8 +45,13 @@ class SpiderProtAlignAPSR(SpiderProtAlign):
 
     def _defineAlignParams(self, form):
         SpiderProtAlign._defineAlignParams(self, form)
-        
-        form.addParallelSection(threads=0, mpi=0) 
+
+        # Hide the center of gravity option from the GUI since it is not
+        # used in this particular alignment method
+        cgOption = form.getParam('cgOption')
+        cgOption.config(condition='False')
+
+        form.addParallelSection(threads=1, mpi=0)
         
     def alignParticlesStep(self, innerRadius, outerRadius):
         """ Apply the selected filter to particles. 
@@ -61,6 +63,7 @@ class SpiderProtAlignAPSR(SpiderProtAlign):
                              '[group_particles]': self._params['particlesSel'],
                              '[unaligned]': self._params['particles'] + '@******',
                              '[aligned_stack]': self._params['particlesAligned'],
+                             '[nummps]': self.numberOfThreads.get()
                             })
         
         self.runTemplate(self.getScript(), self.getExt(), self._params)

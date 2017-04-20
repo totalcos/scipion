@@ -20,7 +20,7 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 """
@@ -32,25 +32,27 @@ from glob import glob
 from os.path import exists
 
 from pyworkflow.protocol.params import (BooleanParam, PointerParam, FloatParam, 
-                                        IntParam, EnumParam, StringParam, LabelParam)
+                                        IntParam, EnumParam, StringParam, 
+                                        LabelParam, PathParam)
 from pyworkflow.protocol.constants import LEVEL_ADVANCED
 from pyworkflow.utils.path import cleanPath
 
+import pyworkflow.em as em
 import pyworkflow.em.metadata as md
 from pyworkflow.em.data import SetOfClasses3D
 from pyworkflow.em.protocol import EMProtocol
 
-from constants import ANGULAR_SAMPLING_LIST, MASK_FILL_ZERO
-from convert import convertBinaryVol, writeSqliteIterData, writeSetOfParticles, getVersion
+from constants import ANGULAR_SAMPLING_LIST, MASK_FILL_ZERO, V2_0, V1_4
+from convert import convertBinaryVol, writeSetOfParticles, getVersion
 
 
 class ProtRelionBase(EMProtocol):
-    """ This class cointains the common functionalities for all Relion protocols.
+    """ This class contains the common functions for all Relion protocols.
     In subclasses there should be little changes about how to create the command line
     and the files produced.
     
     Most of the Relion protocols, have two modes: NORMAL or CONTINUE. That's why
-    some of the function have a template pattern approach to define the behaivour
+    some of the function have a template pattern approach to define the behaviour
     depending on the case.
     """
     IS_CLASSIFY = True
@@ -105,7 +107,10 @@ class ProtRelionBase(EMProtocol):
                   'modelFinal' : self._getExtraPath("relion_model.star"),
                   'finalvolume' : self._getExtraPath("relion_class%(ref3d)03d.mrc:mrc"),
                   'final_half1_volume': self._getExtraPath("relion_half1_class%(ref3d)03d_unfil.mrc:mrc"),
-                  'final_half2_volume': self._getExtraPath("relion_half2_class%(ref3d)03d_unfil.mrc:mrc")
+                  'final_half2_volume': self._getExtraPath("relion_half2_class%(ref3d)03d_unfil.mrc:mrc"),
+                  'preprocess_particles' : self._getPath("preprocess_particles.mrcs"),
+                  'preprocess_particles_star' : self._getPath("preprocess_particles.star"),
+                  'preprocess_particles_preffix' : "preprocess_particles"
                   }
         # add to keys, data.star, optimiser.star and sampling.star
         for key in self.FILE_KEYS:
@@ -145,6 +150,10 @@ class ProtRelionBase(EMProtocol):
                       important=True,
                       label="Input particles",  
                       help='Select the input images from the project.')
+        form.addParam('copyAlignment', BooleanParam, default=True,
+                      label='Consider previous alignment?',
+                      help='If set to Yes, then alignment information from input'
+                           ' particles will be considered.')
         form.addParam('maskDiameterA', IntParam, default=-1,
                       condition='not doContinue',
                       label='Particle mask diameter (A)',
@@ -412,17 +421,116 @@ class ProtRelionBase(EMProtocol):
                               help='A Gaussian prior with the specified standard deviation will be centered at the rotations determined for the corresponding particle where all movie-frames were averaged. For ribosomes, we used a value of 1 degree')
         
         form.addSection('Additional')
-        form.addParam('memoryPreThreads', IntParam, default=2,
-                      label='Memory per Threads',
-                      help='Computer memory in Gigabytes that is available for each thread. This will only '
-                           'affect some of the warnings about required computer memory.')
+        if getVersion() == V2_0:
+            form.addParam('useParallelDisk', BooleanParam, default=True,
+                          label='Use parallel disc I/O?',
+                          help='If set to Yes, all MPI slaves will read '
+                               'their own images from disc. Otherwise, only '
+                               'the master will read images and send them '
+                               'through the network to the slaves. Parallel '
+                               'file systems like gluster of fhgfs are good '
+                               'at parallel disc I/O. NFS may break with many '
+                               'slaves reading in parallel.')
+            form.addParam('pooledParticles', IntParam, default=3,
+                          label='Number of pooled particles:',
+                          help='Particles are processed in individual batches '
+                               'by MPI slaves. During each batch, a stack of '
+                               'particle images is only opened and closed '
+                               'once to improve disk access times. All '
+                               'particle images of a single batch are read '
+                               'into memory together. The size of these '
+                               'batches is at least one particle per thread '
+                               'used. The nr_pooled_particles parameter '
+                               'controls how many particles are read together '
+                               'for each thread. If it is set to 3 and one '
+                               'uses 8 threads, batches of 3x8=24 particles '
+                               'will be read together. This may improve '
+                               'performance on systems where disk access, and '
+                               'particularly metadata handling of disk '
+                               'access, is a problem. It has a modest cost of '
+                               'increased RAM usage.')
+            form.addParam('allParticlesRam', BooleanParam, default=False,
+                          label='Pre-read all particles into RAM?',
+                          help='If set to Yes, all particle images will be '
+                               'read into computer memory, which will greatly '
+                               'speed up calculations on systems with slow '
+                               'disk access. However, one should of course be '
+                               'careful with the amount of RAM available. '
+                               'Because particles are read in '
+                               'float-precision, it will take \n'
+                               '( N * (box_size)^2 * 4 / (1024 * 1024 '
+                               '* 1024) ) Giga-bytes to read N particles into '
+                               'RAM. For 100 thousand 200x200 images, that '
+                               'becomes 15Gb, or 60 Gb for the same number of '
+                               '400x400 particles. Remember that running a '
+                               'single MPI slave on each node that runs as '
+                               'many threads as available cores will have '
+                               'access to all available RAM.\n\n'
+                               'If parallel disc I/O is set to No, then only '
+                               'the master reads all particles into RAM and '
+                               'sends those particles through the network to '
+                               'the MPI slaves during the refinement '
+                               'iterations.')
+            form.addParam('dirPath', PathParam, condition='not allParticlesRam',
+                          label='Copy particles to scratch directory: ',
+                          help='If a directory is provided here, then the job '
+                               'will create a sub-directory in it called '
+                               'relion_volatile. If that relion_volatile '
+                               'directory already exists, it will be wiped. '
+                               'Then, the program will copy all input '
+                               'particles into a large stack inside the '
+                               'relion_volatile subdirectory. Provided this '
+                               'directory is on a fast local drive (e.g. an '
+                               'SSD drive), processing in all the iterations '
+                               'will be faster. If the job finishes '
+                               'correctly, the relion_volatile directory will '
+                               'be wiped. If the job crashes, you may want to '
+                               'remove it yourself.')
+            form.addParam('combineItersDisc', BooleanParam, default=False,
+                          label='Combine iterations through disc?',
+                          help='If set to Yes, at the end of every iteration '
+                               'all MPI slaves will write out a large file '
+                               'with their accumulated results. The MPI '
+                               'master will read in all these files, combine '
+                               'them all, and write out a new file with the '
+                               'combined results. All MPI salves will then '
+                               'read in the combined results. This reduces '
+                               'heavy load on the network, but increases load '
+                               'on the disc I/O. This will affect the time it '
+                               'takes between the progress-bar in the '
+                               'expectation step reaching its end (the mouse '
+                               'gets to the cheese) and the start of the '
+                               'ensuing maximisation step. It will depend on '
+                               'your system setup which is most efficient.')
+            form.addParam('doGpu', BooleanParam, default=True,
+                          label='Use GPU acceleration?',
+                          help='If set to Yes, the job will try to use GPU '
+                               'acceleration.')
+            form.addParam('gpusToUse', StringParam, default='',
+                          label='Which GPUs to use:', condition='doGpu', 
+                          help='This argument is not necessary. If left empty, '
+                               'the job itself will try to allocate available GPU '
+                               'resources. You can override the default '
+                               'allocation by providing a list of which GPUs '
+                               '(0,1,2,3, etc) to use. MPI-processes are '
+                               'separated by ":", threads by ",". '
+                               'For example: "0,0:1,1:0,0:1,1"')
+        else:
+            form.addParam('memoryPreThreads', IntParam, default=2,
+                          label='Memory per Threads',
+                          help='Computer memory in Gigabytes that is '
+                               'available for each thread. This will only '
+                               'affect some of the warnings about required '
+                               'computer memory.')
         
-        joinHalves = "--low_resol_join_halves 40 (only not continue mode)" if not self.IS_CLASSIFY else ""
+        joinHalves = ("--low_resol_join_halves 40 (only not continue mode)"
+                      if not self.IS_CLASSIFY else "")
         form.addParam('extraParams', StringParam, default='',
                       label='Additional parameters',
-                      help="In this box command-line arguments may be provided that "
-                           "are not generated by the GUI. This may be useful for testing "
-                           "developmental options and/or expert use of the program, e.g: \n"
+                      help="In this box command-line arguments may be "
+                           "provided that are not generated by the GUI. This "
+                           "may be useful for testing developmental options "
+                           "and/or expert use of the program, e.g: \n"
                            "--dont_combine_weights_via_disc\n"
                            "--verb 1\n"
                            "--pad 2\n" + joinHalves)
@@ -442,7 +550,8 @@ class ProtRelionBase(EMProtocol):
     #--------------------------- INSERT steps functions --------------------------------------------  
     def _insertAllSteps(self):
         self._initialize()
-        self._insertFunctionStep('convertInputStep', self._getInputParticles().getObjId())
+        self._insertFunctionStep('convertInputStep', self._getInputParticles().getObjId(),
+                                 self.copyAlignment)
         self._insertRelionStep()
         self._insertFunctionStep('createOutputStep')
     
@@ -455,11 +564,14 @@ class ProtRelionBase(EMProtocol):
             self._setContinueArgs(args)
         else:
             self._setNormalArgs(args)
+        if getVersion() == V2_0:
+            self._setComputeArgs(args)
+        
         params = ' '.join(['%s %s' % (k, str(v)) for k, v in args.iteritems()])
         
         if self.extraParams.hasValue():
             params += ' ' + self.extraParams.get()
-
+        
         self._insertFunctionStep('runRelionStep', params)
         
     def _setNormalArgs(self, args):
@@ -473,7 +585,6 @@ class ProtRelionBase(EMProtocol):
                      '--particle_diameter': maskDiameter,
                      '--angpix': self._getInputParticles().getSamplingRate(),
                     })
-        self._setMaskArgs(args)
         self._setCTFArgs(args)
         
         if self.maskZero == MASK_FILL_ZERO:
@@ -492,7 +603,9 @@ class ProtRelionBase(EMProtocol):
             args['--ini_high'] = self.initialLowPassFilterA.get()
             args['--sym'] = self.symmetryGroup.get()
         
-        args['--memory_per_thread'] = self.memoryPreThreads.get()
+        if not getVersion() == V2_0:
+            args['--memory_per_thread'] = self.memoryPreThreads.get()
+        
         self._setBasicArgs(args)
         
     def _setContinueArgs(self, args):
@@ -504,6 +617,25 @@ class ProtRelionBase(EMProtocol):
         self._setBasicArgs(args)
         
         args['--continue'] = continueRun._getFileName('optimiser', iter=self._getContinueIter())
+    
+    def _setComputeArgs(self, args):
+        
+        if not self.combineItersDisc:
+            args['--dont_combine_weights_via_disc'] = ''
+        
+        if not self.useParallelDisk:
+            args['--no_parallel_disc_io'] = ''
+        
+        if self.allParticlesRam:
+            args['--preread_images'] = ''
+        else:
+            if self.dirPath.hasValue():
+                args['--scratch_dir'] = self.dirPath.get()
+            
+        args['--pool'] = self.pooledParticles.get()
+        
+        if self.doGpu:
+            args['--gpu'] = self.gpusToUse.get()
     
     def _setBasicArgs(self, args):
         """ Return a dictionary with basic arguments. """
@@ -519,6 +651,7 @@ class ProtRelionBase(EMProtocol):
             args['--iter'] = self._getnumberOfIters()
             
         self._setSamplingArgs(args)
+        self._setMaskArgs(args)
     
     def _setCTFArgs(self, args):        
         # CTF stuff
@@ -544,7 +677,7 @@ class ProtRelionBase(EMProtocol):
                 args['--solvent_mask2'] = self.solventMask.get().getFileName() #FIXME: CHANGE BY LOCATION, convert if necessary
     
     #--------------------------- STEPS functions --------------------------------------------       
-    def convertInputStep(self, particlesId):
+    def convertInputStep(self, particlesId, copyAlignment):
         """ Create the input file in STAR format as expected by Relion.
         If the input particles comes from Relion, just link the file.
         Params:
@@ -556,9 +689,16 @@ class ProtRelionBase(EMProtocol):
 
         self.info("Converting set from '%s' into '%s'" %
                            (imgSet.getFileName(), imgStar))
-        
+
         # Pass stack file as None to avoid write the images files
-        writeSetOfParticles(imgSet, imgStar, self._getExtraPath())
+        # If copyAlignmet is set to False pass alignType to ALIGN_NONE
+        if copyAlignment:
+            alignType = imgSet.getAlignment()
+        else:
+            alignType = em.ALIGN_NONE
+
+        writeSetOfParticles(imgSet, imgStar, self._getExtraPath(),
+                            alignType=alignType)
         
         if self.doCtfManualGroups:
             self._splitInCTFGroups(imgStar)
@@ -579,7 +719,8 @@ class ProtRelionBase(EMProtocol):
                                     postprocessImageRow=self._postprocessImageRow)
                 mdMovies = md.MetaData(self._getFileName('movie_particles'))
                 mdParts = md.MetaData(self._getFileName('input_star'))
-                if getVersion() == "1.4":
+
+                if getVersion() == V1_4:
                     mdParts.renameColumn(md.RLN_IMAGE_NAME, md.RLN_PARTICLE_ORI_NAME)
                 else:
                     mdParts.renameColumn(md.RLN_IMAGE_NAME, md.RLN_PARTICLE_NAME)
@@ -605,11 +746,8 @@ class ProtRelionBase(EMProtocol):
     #--------------------------- INFO functions -------------------------------------------- 
     def _validate(self):
         errors = []
-        if not getVersion():
-            errors.append("We couldn't detect Relion version. ")
-            errors.append("Please, check your configuration file and change RELION_HOME.")
-            errors.append("The path should contains either '1.3' or '1.4' ")
-            errors.append("to properly detect the version.")
+        self.validatePackageVersion('RELION_HOME', errors)
+
         if self.doContinue:
             continueProtocol = self.continueRun.get()
             if (continueProtocol is not None and
@@ -644,17 +782,20 @@ class ProtRelionBase(EMProtocol):
     
     def _summary(self):
         self._initialize()
-        iterMsg = 'Iteration %d' % self._lastIter()
-        if self.hasAttribute('numberOfIterations'):
-            iterMsg += '/%d' % self._getnumberOfIters()
-        summary = [iterMsg]
-        
-        if self._getInputParticles().isPhaseFlipped():
-            msg = "Your images have been ctf-phase corrected"
+
+        lastIter = self._lastIter()
+
+        if lastIter is not None:
+            iterMsg = 'Iteration %d' % lastIter
+            if self.hasAttribute('numberOfIterations'):
+                iterMsg += '/%d' % self._getnumberOfIters()
         else:
-            msg = "Your images have not been ctf-phase corrected"
-        
-        summary += [msg]
+            iterMsg = 'No iteration finished yet.'
+        summary = [iterMsg]
+
+        flip = '' if self._getInputParticles().isPhaseFlipped() else 'not '
+        flipMsg = "Your images have %sbeen ctf-phase corrected" % flip
+        summary.append(flipMsg)
         
         if self.doContinue:
             summary += self._summaryContinue()
@@ -731,8 +872,11 @@ class ProtRelionBase(EMProtocol):
         data_sqlite = self._getFileName('data_scipion', iter=it)
         
         if not exists(data_sqlite):
-            data = self._getFileName('data', iter=it)
-            writeSqliteIterData(data, data_sqlite, **kwargs)
+            iterImgSet = em.SetOfParticles(filename=data_sqlite)
+            iterImgSet.copyInfo(self._getInputParticles())
+            self._fillDataFromIter(iterImgSet, it)
+            iterImgSet.write()
+            iterImgSet.close()
         
         return data_sqlite
     

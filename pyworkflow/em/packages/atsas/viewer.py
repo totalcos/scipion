@@ -20,7 +20,7 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 """
@@ -57,7 +57,7 @@ class AtsasViewer(Viewer):
             import numpy
             x=numpy.loadtxt(fnInt,skiprows=1)
             xplotter = Plotter(windowTitle="SAXS Curves")
-            a = xplotter.createSubPlot('SAXS curves', 'Armstrongs^-1', 'log(SAXS)', yformat=False)
+            a = xplotter.createSubPlot('SAXS curves', 'Angstrongs^-1', 'log(SAXS)', yformat=False)
             a.plot(x[:,0], numpy.log(x[:,1]))
             a.plot(x[:,0], numpy.log(x[:,2]))
             if obj.experimentalSAXS.empty():

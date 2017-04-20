@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # **************************************************************************
 # *
 # * Authors:  Jesus Cuenca (jcuenca@cnb.csic.es)
@@ -23,7 +24,7 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 
@@ -38,7 +39,7 @@ from pyworkflow.utils import replaceBaseExt, removeExt
 
 
 class XmippProtConvertPdb(em.ProtInitialVolume):
-    """ Covert a PDB file to a volume.  """
+    """ Convert a PDB file into a volume.  """
     _label = 'convert a PDB'
     IMPORT_FROM_ID = 0
     IMPORT_OBJ = 1
@@ -64,7 +65,7 @@ class XmippProtConvertPdb(em.ProtInitialVolume):
                       label="File path", condition='inputPdbData == IMPORT_FROM_FILES', allowsNull=True,
                       help='Specify a path to desired PDB structure.')
         form.addParam('sampling', params.FloatParam, default=1.0, 
-                      label="Sampling rate (A/px)",
+                      label="Sampling rate (Å/px)",
                       help='Sampling rate (Angstroms/pixel)')
         form.addParam('setSize', params.BooleanParam, label='Set final size?', default=False)
         form.addParam('size', params.IntParam, condition='setSize', allowsNull=True, 

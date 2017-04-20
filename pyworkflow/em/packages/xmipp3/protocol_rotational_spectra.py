@@ -20,12 +20,10 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jgomez@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
-"""
-This sub-package contains wrapper around rotational spectra Xmipp program
-"""
+
 from os.path import join
 import numpy as np
 
@@ -34,7 +32,6 @@ from pyworkflow.utils.path import makePath
 from pyworkflow.gui.plotter import Plotter
 from pyworkflow.protocol.params import EnumParam, IntParam
 import xmipp, xmipp3
-
 
 from protocol_kerdensom import KendersomBaseClassify
 from convert import readSetOfClasses2D

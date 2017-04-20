@@ -21,7 +21,7 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 """
@@ -35,6 +35,8 @@ from pyworkflow.protocol.params import (PointerParam, BooleanParam, IntParam,
                                         FloatParam, StringParam, Positive, GE,
                                         EnumParam, NumericListParam, TextParam,
                                         DigFreqParam)
+
+from pyworkflow.em.packages.xmipp3.constants import SYM_URL
                                         
 
 def _defineProjectionMatchingParams(self, form):
@@ -190,7 +192,7 @@ def _defineProjectionMatchingParams(self, form):
     *Note:* if there are more values than iterations the extra value are ignored
     """)
     
-    form.addParam('maxChangeInAngles', NumericListParam, default='1000 10 4 2', 
+    form.addParam('maxChangeInAngles', NumericListParam, default='1000 10 6 4', 
                   label='Angular search range (deg)',
                   help=""" Maximum change in rot & tilt  (in +/- degrees)
     You may specify this option for each iteration. 
@@ -241,17 +243,16 @@ def _defineProjectionMatchingParams(self, form):
     
     form.addParam('maxChangeOffset', NumericListParam, default='1000 10 5', 
                  label='Maximum change in origin offset', expertLevel=LEVEL_ADVANCED,
-                 help=""" If set to 1, this option will result to a Gaussian perturbation to the 
-    evenly sampled projection directions of the reference library. 
-    This may serve to decrease the effects of model bias.
-    You may specify this option for each iteration. 
-    This can be done by a sequence of numbers (for instance, "1 1 0" 
-    specifies 3 iterations, the first two set the value to 1 
-    and the last to 0. An alternative compact notation 
-    is ("2x1 0", i.e.,
-    2 iterations with value 1, and 1 with value 0).
+                 help=""" Maximum shift allowed per iteration.
+    You may specify this option for each iteration.
+    This can be done by a sequence of numbers (for instance, "1000 10 5"
+    specifies 3 iterations, the first two set the value to 1000
+    (almost no restriction) and the last to 5.
+    An alternative compact notation
+    is ("2x1000 5", i.e.,
+    2 iterations with value 1000, and 1 with value 5).
     *Note:* if there are less values than iterations the last value is reused
-    *Note:* if there are more values than iterations the extra value are ignored
+    *Note:* if there are more values than iterations the extra values are ignored
     """)          
     
     form.addParam('search5DShift', NumericListParam, default='4x5 0', 
@@ -279,24 +280,26 @@ def _defineProjectionMatchingParams(self, form):
     *Note:* if there are more values than iterations the extra value are ignored
     """)          
     
-    form.addParam('doRestricSearchbyTiltAngle', BooleanParam, default=False, expertLevel=LEVEL_ADVANCED,
+    form.addParam('doRestricSearchbyTiltAngle', BooleanParam, default=False,
+                  expertLevel=LEVEL_ADVANCED,
                  label="Restrict tilt angle search?", 
                  help ='Restrict tilt angle search \n ')             
     
-    form.addParam('tilt0', FloatParam, default=-91., condition='doRestricSearchbyTiltAngle',
+    form.addParam('tilt0', FloatParam, default=0,
+                  condition='doRestricSearchbyTiltAngle',
                  label="Lower-value for restricted tilt angle search", 
                  help ='Lower-value for restricted tilt angle search \n ')             
     
-    form.addParam('tiltF', FloatParam, default=-91., condition='doRestricSearchbyTiltAngle',
+    form.addParam('tiltF', FloatParam, default=180,
+                  condition='doRestricSearchbyTiltAngle',
                  label="Higher-value for restricted tilt angle search", 
                  help ='Higher-value for restricted tilt angle search \n ')             
     form.addParam('symmetry', TextParam, default='c1',
                  label='Point group symmetry',
-                 help=""" See [[http://xmipp.cnb.csic.es/twiki/bin/view/Xmipp/Symmetry][Symmetry]]
-    for a description of the symmetry groups format
-    If no symmetry is present, give c1
-    """)
-    form.addParam('symmetryGroupNeighbourhood', TextParam, default='', expertLevel=LEVEL_ADVANCED,
+                 help=" See %s for a description of the symmetry groups format."
+                      "\nIf no symmetry is present, give c1. " % SYM_URL)
+    form.addParam('symmetryGroupNeighbourhood', TextParam, default='',
+                  expertLevel=LEVEL_ADVANCED,
                  label='Symmetry group for Neighbourhood computations',
                  help=""" If you do not know what this is leave it blank.
     This symmetry will be using for compute neighboring points,
@@ -307,7 +310,8 @@ def _defineProjectionMatchingParams(self, form):
     """
     )
     form.addParam('onlyWinner', NumericListParam, default='0', 
-                 label='compute only closest neighbor', expertLevel=LEVEL_ADVANCED,
+                 label='compute only closest neighbor',
+                  expertLevel=LEVEL_ADVANCED,
                  condition="symmetryGroupNeighbourhood != ''",
                  help="""This option is only relevant if symmetryGroupNeighbourhood !=''
     If set to 1 only one neighbor will be computed per sampling point

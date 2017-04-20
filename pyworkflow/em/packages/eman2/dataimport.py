@@ -20,7 +20,7 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 
@@ -28,7 +28,7 @@ from os.path import  exists, join, dirname
 
 from pyworkflow.utils.path import getExt
 from pyworkflow.em.data import Coordinate
-from pyworkflow.em.packages.eman2 import loadJson
+from pyworkflow.em.packages.eman2.convert import loadJson
 from pyworkflow.em.metadata import MetaData, MDL_XCOOR, MDL_YCOOR, MDL_PICKING_PARTICLE_SIZE
 
 

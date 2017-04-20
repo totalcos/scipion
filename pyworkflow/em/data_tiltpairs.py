@@ -21,7 +21,7 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 """
@@ -91,9 +91,16 @@ class TiltPairSet(EMSet):
             self._tilted.close()
         if self._untilted is not None:
             self._untilted.close()
-        EMSet.close(self)    
-    
-    
+        EMSet.close(self)
+
+    def write(self, properties=True):
+        if self._tilted is not None:
+            self._tilted.write(properties=properties)
+        if self._untilted is not None:
+            self._untilted.write(properties=properties)
+        EMSet.write(self, properties=properties)
+
+
 class MicrographsTiltPair(TiltPairSet):
     """Represents a Micrographs Tilt Pair"""
     ITEM_TYPE = TiltPair
@@ -105,11 +112,14 @@ class CoordinatesTiltPair(TiltPairSet):
     
     def __init__(self, **kwargs):
         TiltPairSet.__init__(self, **kwargs)
-        self._angles = SetOfAngles()
+        self._angles = None
         self._micsPair = Pointer()
         
     def getAngles(self):
         return self._angles
+    
+    def getBoxSize(self):
+        return self.getUntilted().getBoxSize()
     
     def getMicsPair(self):
         return self._micsPair.get()
@@ -132,7 +142,8 @@ class CoordinatesTiltPair(TiltPairSet):
 
     def close(self):
         TiltPairSet.close(self)
-        self.getAngles().close()
+        if self.getAngles():
+            self.getAngles().close()
 
          
 class Angles(EMObject):
@@ -157,9 +168,6 @@ class SetOfAngles(EMSet):
     """ Represents a set of Images """
     ITEM_TYPE = Angles
     
-    def __init__(self, **args):
-        EMSet.__init__(self, **args)
-        
     def _loadClassesDict(self):
         return globals()  
     

@@ -20,12 +20,9 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
-"""
-This sub-package will contains Eman3.0 specific protocols
-"""
 
 import os
 from os.path import join
@@ -36,8 +33,14 @@ def getEnviron():
     """ Setup the environment variables needed to launch Eman. """
     environ = Environ(os.environ)
     EMAN2DIR = os.environ['EMAN2DIR']
-    pathList = [os.path.join(EMAN2DIR, d) for d in ['lib', 'bin', 'extlib/site-packages']]
-    
+    pathList = [os.path.join(EMAN2DIR, d)
+                for d in ['lib', 'bin', 'extlib/site-packages']]
+
+    # This environment variable is used to setup OpenGL (Mesa)
+    # library in remote desktops
+    if 'REMOTE_MESA_LIB' in os.environ:
+        pathList.append(os.environ['REMOTE_MESA_LIB'])
+
     environ.update({
             'PATH': join(EMAN2DIR, 'bin'),
             'LD_LIBRARY_PATH': os.pathsep.join(pathList),
@@ -49,12 +52,24 @@ def getEnviron():
 
 def getVersion():
     path = os.environ['EMAN2DIR']
-    if '2.11' in path:
-        return '2.11'
-    elif '2.12' in path:
-        return '2.12'
-    else:
-        return ''
+    for v in getSupportedVersions():
+        if v in path:
+            return v
+    return ''
+
+
+def getSupportedVersions():
+    return ['2.11', '2.12']
+
+
+def validateVersion(protocol, errors):
+    """ Validate if eman version is set properly according
+     to installed version and the one set in the config file.
+     Params:
+        protocol: the input protocol calling to validate
+        errors: a list that will be used to add the error message.
+    """
+    protocol.validatePackageVersion('EMAN2DIR', errors)
 
 
 def getEmanProgram(program):

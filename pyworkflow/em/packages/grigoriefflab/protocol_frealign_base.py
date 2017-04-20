@@ -20,7 +20,7 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jgomez@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 """This module contains the protocol base class for frealign protocols"""
@@ -45,7 +45,7 @@ from grigoriefflab import FREALIGN, FREALIGN_PATH, FREALIGNMP_PATH
 
 
 class ProtFrealignBase(EMProtocol):
-    """ This class cointains the common functionalities for all Frealign protocols.
+    """ This class contains the common functions for all Frealign protocols.
     In subclasses there should be little changes about the steps to execute and several parameters
     """
     IS_REFINE = True
@@ -69,6 +69,8 @@ class ProtFrealignBase(EMProtocol):
             # Volumes for the iteration
             'ref_vol': iterFile('reference_volume_iter_%(iter)03d.mrc'),
             'iter_vol': iterFile('volume_iter_%(iter)03d.mrc'),
+            'iter_vol1': iterFile('volume_1_iter_%(iter)03d.mrc'),
+            'iter_vol2': iterFile('volume_2_iter_%(iter)03d.mrc'),
             'output_vol_par': iterFile('output_vol_iter_%(iter)03d.par'),
             # dictionary for all set
             'output_par': iterFile('particles_iter_%(iter)03d.par'),
@@ -471,7 +473,7 @@ class ProtFrealignBase(EMProtocol):
                            'high values in the FSC curve (se publication #2 above). FREALIGN uses an\n'
                            'automatic weighting scheme and RBFACT should normally be set to 0.0.')
 
-        form.addParallelSection(threads=1, mpi=4)
+        form.addParallelSection(threads=4, mpi=1)
 
     #--------------------------- INSERT steps functions --------------------------------------------
     def _insertAllSteps(self):
@@ -482,7 +484,7 @@ class ProtFrealignBase(EMProtocol):
         self._insertContinueStep()
         self._insertItersSteps()
         self._insertFunctionStep("createOutputStep")
-
+    
     def _insertContinueStep(self):
         if self.doContinue:
             continueRun = self.continueRun.get()
@@ -713,25 +715,26 @@ class ProtFrealignBase(EMProtocol):
     def _validate(self):
         errors = []
         imgSet = self._getInputParticles()
+        partSizeX = imgSet.getXDim()
 
-        if not exists(FREALIGN_PATH):
-            errors.append('Missing ' + FREALIGN_PATH)
+        self.validatePackageVersion('FREALIGN_HOME', errors)
 
-        partSizeX, _, _ = imgSet.getDim()
         if not self.doContinue:
-            volSizeX, _, _ = self.input3DReference.get().getDim()
-            if partSizeX != volSizeX:
-                errors.append('Volume and particles dimensions must be equal!!!')
+            self._validateDim(imgSet, self.input3DReference.get(), errors,
+                              'Input particles', 'Reference volume')
 
         halfX = partSizeX % 2
+
         if halfX != 0:
             errors.append('Particle dimensions must be even!!!')
+
         if not imgSet.hasAlignmentProj() and self.useInitialAngles.get():
             errors.append("Particles has not initial angles !!!")
+
         if imgSet.isPhaseFlipped():
             errors.append("Your particles are phase flipped. Please, choose "
                           "a set of particles without phase-contrast correction "
-                          "to run frealign.")
+                          "to run Frealign.")
         return errors
     
     def _summary(self):
@@ -746,7 +749,7 @@ class ProtFrealignBase(EMProtocol):
         else:
             summary.append("Number of iterations: %d" % self.numberOfIterations.get())
             #             summary.append("Angular step size: %f" % self.angStepSize.get())
-            summary.append("symmetry: %s" % self.symmetry.get())
+            summary.append("Symmetry: %s" % self.symmetry.get())
             summary.append("Final volume: %s" % self.outputVolume.getFileName())
 
         return summary
@@ -757,8 +760,7 @@ class ProtFrealignBase(EMProtocol):
 
     #--------------------------- UTILS functions ---------------------------------------------------
     def _getParamsIteration(self, iterN):
-        """ Defining the current iteration
-        """
+        """ Defining the current iteration """
         imgSet = self._getInputParticles()
 
         #Prepare arguments to call program fralign_v9.exe
@@ -920,7 +922,7 @@ class ProtFrealignBase(EMProtocol):
         return paramsDic
     
     def _createIterWorkingDir(self, iterN):
-        """create a new directory for the iterarion and change to this directory.
+        """create a new directory for the iteration and change to this directory.
         """
         workDir = self._iterWorkingDir(iterN)
         makePath(workDir)   # Create a directory for a current iteration
@@ -1068,7 +1070,7 @@ eot
                 copyFile(file1, file2)
 
     def _splitParFile(self, iterN, numberOfBlocks):
-        """ This method split the parameter files that has been previosuly merged """
+        """ This method split the parameter files that has been previously merged """
 
         prevIter = iterN -1
         file1 = self._getFileName('output_par', iter=prevIter)
@@ -1172,16 +1174,16 @@ eot
         psiP, thetaP, phiP = angles
 
         #TODO review FLIP. I think we got it wrong
-        psi   = phiP
+        psi  = phiP
         theta = thetaP
-        phi   = psiP
+        phi  = psiP
         shiftX = -shiftXP
         shiftY = -shiftYP
 
         # get ctfModel for each particle
         ctfModel = img.getCTF()
-        defU     = ctfModel.getDefocusU()
-        defV     = ctfModel.getDefocusV()
+        defU = ctfModel.getDefocusU()
+        defV = ctfModel.getDefocusV()
         defAngle = ctfModel.getDefocusAngle()
 
         # get the adquisition info
@@ -1224,11 +1226,12 @@ eot
             micIdMap[mic['_micId']]=counter
             counter = counter +1
         return micIdMap
-
+    
     def _getInputParticlesPointer(self):
-        if self.doContinue and self.inputParticles is None:
-            self.inputParticles.set(self.continueRun.get().inputParticles.get())
-        return self.inputParticles
+        if self.doContinue:
+            return self.continueRun.get()._getInputParticlesPointer()
+        else:
+            return self.inputParticles
     
     def _getInputParticles(self):
         return self._getInputParticlesPointer().get()
@@ -1238,5 +1241,3 @@ eot
         cpus = max(self.numberOfMpi.get() - 1, self.numberOfThreads.get() - 1, 1)
         numberOfMics = len(self._getMicIdList())
         return min(cpus, numberOfMics)
-    
-    

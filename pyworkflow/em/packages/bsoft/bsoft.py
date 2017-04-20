@@ -20,16 +20,13 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'azaldivar@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
-"""
-This sub-package will contains Eman3.0 specific protocols
-"""
 
 import os
 
-from pyworkflow.utils import environAdd
+from pyworkflow.utils import environAdd, Environ
 
 
 
@@ -38,13 +35,14 @@ def loadEnvironment():
     BSOFT_BIN = os.path.join(BSOFT_HOME, 'bin')
     environAdd('PATH', BSOFT_BIN)
     os.environ['BSOFT'] = BSOFT_HOME
-    
+
+
 def getEnviron(xmippFirst=True):
     """ Create the needed environment for Bsoft programs. """
     environ = Environ(os.environ)
     pos = Environ.BEGIN if xmippFirst else Environ.END
     environ.update({
-            'PATH': join(os.environ['BSOFT_HOME'], 'bin'),
+            'PATH': os.path.join(os.environ['BSOFT_HOME'], 'bin'),
             #'LD_LIBRARY_PATH': join(os.environ['BSOFT_HOME'], 'lib')
             }, position=pos)
     return environ

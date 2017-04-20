@@ -20,25 +20,21 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jgomez@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
-from pyworkflow.em.packages.eman2.convert import createEmanProcess
-"""
-This sub-package contains wrapper around EMAN initialmodel program
-"""
 
 import os
 import re
 from os.path import exists
 from glob import glob
 import pyworkflow.em as em
-from pyworkflow.em.packages.eman2.eman2 import getEmanProgram, getVersion
+from pyworkflow.em.packages.eman2.eman2 import getEmanProgram, validateVersion
+from pyworkflow.em.packages.eman2.convert import createEmanProcess
 from pyworkflow.protocol.params import (PointerParam, FloatParam, IntParam, EnumParam,
                                         StringParam, BooleanParam)
 from pyworkflow.utils.path import cleanPattern, makePath, createLink
 from pyworkflow.em.data import Volume
-from pyworkflow.em.protocol import ProtRefine3D
 
 from convert import rowToAlignment
 
@@ -66,17 +62,21 @@ FILTER_LP_5 = 10
 FILTER_LP_6 = 11
 
                                
-class EmanProtRefine(ProtRefine3D):
+class EmanProtRefine(em.ProtRefine3D):
     """
     This Protocol wraps *e2refine_easy.py* Eman2 program.
 This is the primary single particle refinement program in EMAN2.1+. Major
 features of this program:
-- While a range of command-line options still exist. You should not normally specify
-more than a few basic requirements. The rest will be auto-selected for you.
+
+- While a range of command-line options still exist. You should not normally
+specify more than a few basic requirements. The rest will be auto-selected
+for you.
 - This program will split your data in half and automatically refine the halves
-independently to produce a gold standard resolution curve for every step in the refinement.
+independently to produce a gold standard resolution curve for every step in the
+refinement.
 - The gold standard FSC also permits us to automatically filter the structure
-at each refinement step. The resolution you specify is a target, not the filter resolution.
+at each refinement step. The resolution you specify is a target, not the filter
+resolution.
     """
     _label = 'refine easy'
 
@@ -88,7 +88,6 @@ at each refinement step. The resolution you specify is a target, not the filter 
                   'partFlipSet': 'sets/inputSet__ctf_flip.lst',
                   'data_scipion': self._getExtraPath('data_scipion_it%(iter)02d.sqlite'),
                   'projections': self._getExtraPath('projections_it%(iter)02d_%(half)s.sqlite'),
-                  'volume': self._getExtraPath('refine_%(run)02d/threed_%(iter)02d.hdf'),
                   'classes': 'refine_%(run)02d/classes_%(iter)02d',
                   'classesEven': self._getExtraPath('refine_%(run)02d/classes_%(iter)02d_even.hdf'),
                   'classesOdd': self._getExtraPath('refine_%(run)02d/classes_%(iter)02d_odd.hdf'),
@@ -99,21 +98,24 @@ at each refinement step. The resolution you specify is a target, not the filter 
                   'mapEven': self._getExtraPath('refine_%(run)02d/threed_%(iter)02d_even.hdf'),
                   'mapOdd': self._getExtraPath('refine_%(run)02d/threed_%(iter)02d_odd.hdf'),
                   'mapFull': self._getExtraPath('refine_%(run)02d/threed_%(iter)02d.hdf'),
+                  'mapEvenUnmasked': self._getExtraPath('refine_%(run)02d/threed_even_unmasked.hdf'),
+                  'mapOddUnmasked': self._getExtraPath('refine_%(run)02d/threed_odd_unmasked.hdf'),
                   'fscUnmasked': self._getExtraPath('refine_%(run)02d/fsc_unmasked_%(iter)02d.txt'),
                   'fscMasked': self._getExtraPath('refine_%(run)02d/fsc_masked_%(iter)02d.txt'),
                   'fscMaskedTight': self._getExtraPath('refine_%(run)02d/fsc_maskedtight_%(iter)02d.txt'),
                   }
-        
         self._updateFilenamesDict(myDict)
     
     def _createIterTemplates(self, currRun):
         """ Setup the regex on how to find iterations. """
-        self._iterTemplate = self._getFileName('mapEven', run=currRun, iter=0).replace('00','??')
-        # Iterations will be identify by threed_XX_ where XX is the iteration number
-        # and is restricted to only 2 digits.
-        self._iterRegex = re.compile('threed_(\d{2,2})_')
+        self._iterTemplate = self._getFileName('mapFull', run=currRun,
+                                               iter=1).replace('threed_01',
+                                                               'threed_??')
+        # Iterations will be identify by threed_XX_ where XX is the iteration
+        #  number and is restricted to only 2 digits.
+        self._iterRegex = re.compile('threed_(\d{2,2})')
     
-    #--------------------------- DEFINE param functions --------------------------------------------   
+    #--------------------------- DEFINE param functions ------------------------
     def _defineParams(self, form):
         form.addSection(label='Input')
         
@@ -122,12 +124,14 @@ at each refinement step. The resolution you specify is a target, not the filter 
               help='If you set to *Yes*, you should select a previous'
               'run of type *%s* class and most of the input parameters'
               'will be taken from it.' % self.getClassName())
-        form.addParam('continueRun', PointerParam, pointerClass=self.getClassName(),
+        form.addParam('continueRun', PointerParam,
+                      pointerClass=self.getClassName(),
                       condition='doContinue', allowsNull=True,
                       label='Select previous run',
                       help='Select a previous run to continue from.')
-        form.addParam('inputParticles', PointerParam, label="Input particles", important=True,
-                      pointerClass='SetOfParticles', condition='not doContinue', allowsNull=True,
+        form.addParam('inputParticles', PointerParam, label="Input particles",
+                      important=True, pointerClass='SetOfParticles',
+                      condition='not doContinue', allowsNull=True,
                       help='Select the input particles.\n')  
         form.addParam('input3DReference', PointerParam,
                       pointerClass='Volume', allowsNull=True,
@@ -136,17 +140,18 @@ at each refinement step. The resolution you specify is a target, not the filter 
                       help='Input 3D reference reconstruction.\n')
         form.addParam('numberOfIterations', IntParam, default=2,
                       label='Number of iterations:',
-                      help='Set the number of iterations. Iterative reconstruction'
-                           'improves the overall normalization of the 2D images'
-                           'as they are inserted into the reconstructed volume,'
-                           'and allows for the exclusion of the poorer quality'
+                      help='Set the number of iterations. Iterative '
+                           'reconstruction improves the overall normalization '
+                           'of the 2D images as they are inserted into the '
+                           'reconstructed volume, and allows for the '
+                           'exclusion of the poorer quality'
                            'images.')
         form.addParam('symmetry', StringParam, default='c1',
                       condition='not doContinue',
                       label='Symmetry group',
-                      help='Set the symmetry; if no value is given then the model'
-                           'is assumed to have no symmetry. Choices are: i(n),'
-                           ' c(n), d(n), tet, icos, or oct.'
+                      help='Set the symmetry; if no value is given then the '
+                           'model is assumed to have no symmetry. \n'
+                           'Choices are: i(n), c(n), d(n), tet, icos, or oct.\n'
                            'See http://blake.bcm.edu/emanwiki/EMAN2/Symmetry'
                            'for a detailed descript of symmetry in Eman.')
         form.addParam('resol', FloatParam, default='10.0',
@@ -161,26 +166,23 @@ at each refinement step. The resolution you specify is a target, not the filter 
                       help='Approximate molecular mass of the particle, in kDa.'
                            'This is used to runnormalize.bymass. Due to'
                            'resolution effects, not always the true mass.')
-#         form.addParam('haveDataBeenPhaseFlipped', BooleanParam, default=False,
-#                       label='Have data been phase-flipped?', condition='not doContinue',
-#                       help='Set this to Yes if the images have been ctf-phase corrected during the '
-#                            'pre-processing steps.')       
         form.addParam('doBreaksym', BooleanParam, default=False,
                        label='Do not impose symmetry?',
-                       help='If set True, reconstruction will be asymmetric with'
-                            '*Symmetry group* parameter specifying a known pseudosymmetry,'
-                            'not an imposed symmetry.')
+                       help='If set True, reconstruction will be asymmetric '
+                            'with *Symmetry group* parameter specifying a '
+                            'known pseudosymmetry, not an imposed symmetry.')
         form.addParam('useE2make3d', BooleanParam, default=False,
                        label='use e2make3d?',
-                       help='Use the traditional e2make3d program instead of the'
-                            'new e2make3dpar program.')
+                       help='Use the traditional e2make3d program instead of '
+                            'the new e2make3dpar program.')
         form.addParam('speed', EnumParam,
                       choices=['1', '2', '3', '4', '5', '6', '7',],
                       label="Balance speed vs precision:", default=SPEED_5,
                       display=EnumParam.DISPLAY_COMBO,
-                      help='Larger values sacrifice a bit of potential resolution for'
-                           'significant speed increases. Set to 1 when really'
-                           'pushing resolution. Set to 7 for initial refinements.')
+                      help='Larger values sacrifice a bit of potential '
+                           'resolution for significant speed increases. Set '
+                           'to 1 when really pushing resolution. Set to 7 for '
+                           'initial refinements.')
         form.addParam('classKeep', FloatParam, default='0.9',
                       label='Fraction of particles to use in final average:',
                       help='The fraction of particles to keep in each class,'
@@ -190,32 +192,36 @@ at each refinement step. The resolution you specify is a target, not the filter 
                       help='The fraction of slices to keep in reconstruction.')
         form.addParam('useSetsfref', BooleanParam, default=True,
                        label='Use the setsfref option in class averaging?',
-                       help='This matches the filtration of the class-averages to the'
-                            'projections for easier comparison. May also improve'
-                            'convergence.')
+                       help='This matches the filtration of the class-averages '
+                            'to the projections for easier comparison. May '
+                            'also improve convergence.')
         form.addParam('doAutomask', BooleanParam, default=False,
                        label='Do automask to the class-average?',
-                       help='This will apply an automask to the class-average'
-                            'during iterative alignment for better accuracy. The'
-                            'final class averages are unmasked.')
+                       help='This will apply an automask to the class-average '
+                            'during iterative alignment for better accuracy. '
+                            'The final class averages are unmasked.')
         form.addParam('doThreshold', BooleanParam, default=False,
                        label='Apply threshold before project the volume?',
-                       help='Applies a threshold to the volume just before'
-                            'generating projections. A sort of aggressive solvent'
-                            'flattening for the reference.')
+                       help='Applies a threshold to the volume just before '
+                            'generating projections. A sort of aggressive '
+                            'solvent flattening for the reference.')
         form.addParam('m3dPostProcess', EnumParam,
                       choices=['None', 'filter.highpass.autopeak',
-                               'filter.highpass.butterworth', 'filter.highpass.gauss',
-                               'filter.highpass.tanh', 'filter.highpassl.tophat',
-                               'filter.lowpass.autob', 'filter.lowpass.butterworth',
-                               'filter.lowpass.gauss', 'filter.lowpass.randomphase',
-                               'filter.lowpass.tanh', 'filter.lowpass.tophat'],
+                               'filter.highpass.butterworth',
+                               'filter.highpass.gauss',
+                               'filter.highpass.tanh',
+                               'filter.highpassl.tophat',
+                               'filter.lowpass.autob',
+                               'filter.lowpass.butterworth',
+                               'filter.lowpass.gauss',
+                               'filter.lowpass.randomphase',
+                               'filter.lowpass.tanh',
+                               'filter.lowpass.tophat'],
                       label="Mode to Fourier method:", default=FILTER_NONE,
                       display=EnumParam.DISPLAY_COMBO)
-
         form.addParallelSection(threads=4, mpi=0)
     
-    #--------------------------- INSERT steps functions --------------------------------------------  
+    #--------------------------- INSERT steps functions ------------------------
     def _insertAllSteps(self):        
         self._createFilenameTemplates()
         self._createIterTemplates(self._getRun())
@@ -230,7 +236,7 @@ at each refinement step. The resolution you specify is a target, not the filter 
         self._insertFunctionStep('refineStep', args)
         self._insertFunctionStep('createOutputStep')
     
-    #--------------------------- STEPS functions --------------------------------------------
+    #--------------------------- STEPS functions -------------------------------
     def createLinkSteps(self):
         continueRun = self.continueRun.get()
         prevPartDir = continueRun._getExtraPath("particles")
@@ -282,16 +288,17 @@ at each refinement step. The resolution you specify is a target, not the filter 
         numRun = self._getRun()
         
         vol = Volume()
-        vol.setFileName(self._getFileName("volume",run=numRun, iter=iterN))
+        
+        
+        vol.setFileName(self._getFileName("mapFull",run=numRun, iter=iterN))
+        halfMap1 = self._getFileName("mapEvenUnmasked", run=numRun)
+        halfMap2 = self._getFileName("mapOddUnmasked", run=numRun)
+        vol.setHalfMaps([halfMap1, halfMap2])
         vol.copyInfo(partSet)
         
-        self._execEmanProcess(numRun, iterN)
         newPartSet = self._createSetOfParticles()
         newPartSet.copyInfo(partSet)
-        newPartSet.setAlignment(em.ALIGN_PROJ)
-        newPartSet.copyItems(partSet,
-                             updateItemCallback=self._createItemMatrix,
-                             itemDataIterator=self._iterTextFile(iterN))
+        self._fillDataFromIter(newPartSet, iterN)
         
         self._defineOutputs(outputVolume=vol)
         self._defineSourceRelation(self._getInputParticlesPointer(), vol)
@@ -301,32 +308,31 @@ at each refinement step. The resolution you specify is a target, not the filter 
     #--------------------------- INFO functions -------------------------------------------- 
     def _validate(self):
         errors = []
-        if not getVersion():
-            errors.append("We couldn't detect EMAN version. ")
-            errors.append("Please, check your configuration file and change EMAN2DIR.")
-            errors.append("The path should contains either '2.11' or '2.12' ")
-            errors.append("to properly detect the version.")
+        validateVersion(self, errors)
 
-        samplingRate = self._getInputParticles().getSamplingRate()
-        if self.resol.get() < 2*samplingRate:
-            errors.append("Target resolution is smaller than 2*samplingRate value. This is impossible.")
+        particles = self._getInputParticles()
+        samplingRate = particles.getSamplingRate()
+
+        if self.resol <  2 * samplingRate:
+            errors.append("\nTarget resolution is smaller than nyquist limit.")
         
         if not self.doContinue:
-            partSizeX, _, _ = self._getInputParticles().getDim()
-            volSizeX, _, _ = self.input3DReference.get().getDim()
-            if partSizeX != volSizeX:
-                errors.append('Volume and particles dimensions must be equal!!!')
+            self._validateDim(particles, self.input3DReference.get(), errors,
+                              'Input particles', 'Reference volume')
 
         return errors
     
     def _summary(self):
         summary = []
-        if not hasattr(self, 'outputVolumes'):
+        if not hasattr(self, 'outputVolume'):
             summary.append("Output volumes not ready yet.")
         else:
-            pass
-#             summary.append("Input Images: %s" % self.inputSet.get().getNameId())
-#             summary.append("Output volume: %s" % self.outputVolume.get())
+            inputSize = self._getInputParticles().getSize()
+            outputSize = self.outputParticles.getSize()
+            diff = inputSize - outputSize
+            if diff > 0:
+                summary.append("Warning!!! There are %d particles "
+                               "belonging to empty classes." % diff)
         return summary
     
     #--------------------------- UTILS functions --------------------------------------------
@@ -381,7 +387,6 @@ at each refinement step. The resolution you specify is a target, not the filter 
         return args
     
     def _getRun(self):
-        
         if not self.doContinue:
             return 1
         else:
@@ -410,7 +415,10 @@ at each refinement step. The resolution you specify is a target, not the filter 
         f.close()
     
     def _createItemMatrix(self, item, rowList):
-        item.setTransform(rowToAlignment(rowList[1:], alignType=em.ALIGN_PROJ))
+        if rowList[1] == 1:
+            item.setTransform(rowToAlignment(rowList[2:], alignType=em.ALIGN_PROJ))
+        else:
+            setattr(item, "_appendItem", False)
     
     def _getIterNumber(self, index):
         """ Return the list of iteration files, give the iterTemplate. """
@@ -421,28 +429,24 @@ at each refinement step. The resolution you specify is a target, not the filter 
             s = self._iterRegex.search(f)
             if s:
                 result = int(s.group(1)) # group 1 is 3 digits iteration number
+                
         return result
-        
+    
     def _lastIter(self):
         return self._getIterNumber(-1)
 
     def _firstIter(self):
         return self._getIterNumber(0) or 1
-
+    
     def _getIterData(self, it):
-        from convert import writeSqliteIterData
         data_sqlite = self._getFileName('data_scipion', iter=it)
-        partSet = self._getInputParticles()
         if not exists(data_sqlite):
-            clsFn = self._getFileName("cls", run=self._getRun(), iter=it)
-            classesFn = self._getFileName("classes", run=self._getRun(), iter=it)
-            angles = self._getBaseName('angles', iter=it)
-            
-            proc = createEmanProcess(args='read %s %s %s %s' 
-                         % (self._getParticlesStack(), clsFn, classesFn, angles),
-                         direc=self._getExtraPath())
-            proc.wait()
-            writeSqliteIterData(partSet, data_sqlite, self._createItemMatrix, self._iterTextFile(it))
+            iterImgSet = em.SetOfParticles(filename=data_sqlite)
+            iterImgSet.copyInfo(self._getInputParticles())
+            self._fillDataFromIter(iterImgSet, it)
+            iterImgSet.write()
+            iterImgSet.close()
+        
         return data_sqlite
     
     def _getInputParticlesPointer(self):
@@ -453,8 +457,19 @@ at each refinement step. The resolution you specify is a target, not the filter 
     def _getInputParticles(self):
         return self._getInputParticlesPointer().get()
     
+    def _fillDataFromIter(self, imgSet, iterN):
+        numRun = self._getRun()
+        self._execEmanProcess(numRun, iterN)
+        initPartSet = self._getInputParticles()
+        imgSet.setAlignmentProj()
+        partIter = iter(initPartSet.iterItems(orderBy=['_micId', 'id'],
+                                              direction='ASC'))
+        
+        imgSet.copyItems(partIter,
+                         updateItemCallback=self._createItemMatrix,
+                         itemDataIterator=self._iterTextFile(iterN))
+    
     def _execEmanProcess(self, numRun, iterN):
-        from pyworkflow.utils.path import cleanPath
         clsFn = self._getFileName("cls", run=numRun, iter=iterN)
         classesFn = self._getFileName("classes", run=numRun, iter=iterN)
         angles = self._getFileName('angles', iter=iterN)
@@ -463,6 +478,5 @@ at each refinement step. The resolution you specify is a target, not the filter 
             proc = createEmanProcess(args='read %s %s %s %s'
                                      % (self._getParticlesStack(), clsFn, classesFn,
                                         self._getBaseName('angles', iter=iterN)),
-                                     direc=self._getExtraPath())
+                                        direc=self._getExtraPath())
             proc.wait()
-

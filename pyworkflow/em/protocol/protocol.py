@@ -20,24 +20,24 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
-"""
-In this module are protocol base classes related to EM.
-Them should be sub-classes in the different sub-packages from
-each EM-software packages.
-"""
 
+from itertools import izip
 
 from pyworkflow.protocol import Protocol
 from pyworkflow.object import Set
-from pyworkflow.em.data import (SetOfMicrographs, SetOfCoordinates, SetOfParticles,
+from pyworkflow.em.data import (SetOfMicrographs, SetOfCoordinates,
+                                SetOfParticles, SetOfImages,
                                 SetOfClasses2D, SetOfClasses3D, SetOfClassesVol,
-                                SetOfVolumes, SetOfCTF, SetOfMovies,
-                                SetOfMovieParticles, SetOfAverages, SetOfNormalModes)
-from pyworkflow.em.constants import RELATION_SOURCE, RELATION_TRANSFORM, RELATION_CTF
-from pyworkflow.em.data_tiltpairs import SetOfAngles
+                                SetOfVolumes, SetOfCTF, SetOfMovies, SetOfFSCs,
+                                SetOfMovieParticles, SetOfAverages,
+                                SetOfNormalModes)
+from pyworkflow.em.constants import (RELATION_SOURCE, RELATION_TRANSFORM,
+                                     RELATION_CTF)
+from pyworkflow.em.data_tiltpairs import (SetOfAngles, CoordinatesTiltPair,
+                                          TiltPair)
 from pyworkflow.utils.path import cleanPath
 from pyworkflow.mapper.sqlite_db import SqliteDb
 
@@ -65,18 +65,37 @@ class EMProtocol(Protocol):
         return setObj
     
     def _createSetOfMicrographs(self, suffix=''):
-        return self.__createSet(SetOfMicrographs, 'micrographs%s.sqlite', suffix)
+        return self.__createSet(SetOfMicrographs,
+                                'micrographs%s.sqlite', suffix)
     
     def _createSetOfCoordinates(self, micSet, suffix=''):
-        coordSet = self.__createSet(SetOfCoordinates, 'coordinates%s.sqlite', suffix)
+        coordSet = self.__createSet(SetOfCoordinates,
+                                    'coordinates%s.sqlite', suffix)
         coordSet.setMicrographs(micSet)       
         return coordSet
+
+    def _createCoordinatesTiltPair(self, micTiltPairs, uCoords, tCoords,
+                                   angles, suffix):
+        coordTiltPairs = self.__createSet(CoordinatesTiltPair,
+                                          'coordinates_pairs%s.sqlite', suffix)
+        coordTiltPairs.setUntilted(uCoords)
+        coordTiltPairs.setTilted(tCoords)
+        coordTiltPairs.setAngles(angles)
+        coordTiltPairs.setMicsPair(micTiltPairs)
+
+        for coordU, coordT in izip(uCoords, tCoords):
+            coordTiltPairs.append(TiltPair(coordU, coordT))
+
+        return coordTiltPairs
     
     def _createSetFromName(self, className, suffix=''):
         """ Create a new set from the given className. """
         _createSetFunc = getattr(self, '_create%s' % className)
         return _createSetFunc(suffix)
         
+    def _createSetOfImages(self, suffix=''):
+        return self.__createSet(SetOfImages, 'images%s.sqlite', suffix)
+
     def _createSetOfParticles(self, suffix=''):
         return self.__createSet(SetOfParticles, 'particles%s.sqlite', suffix)
 
@@ -84,15 +103,18 @@ class EMProtocol(Protocol):
         return self.__createSet(SetOfAverages, 'averages%s.sqlite', suffix)
         
     def _createSetOfMovieParticles(self, suffix=''):
-        return self.__createSet(SetOfMovieParticles, 'movie_particles%s.sqlite', suffix)
+        return self.__createSet(SetOfMovieParticles,
+                                'movie_particles%s.sqlite', suffix)
     
     def _createSetOfClasses2D(self, imgSet, suffix=''):
-        classes = self.__createSet(SetOfClasses2D, 'classes2D%s.sqlite', suffix)
+        classes = self.__createSet(SetOfClasses2D,
+                                   'classes2D%s.sqlite', suffix)
         classes.setImages(imgSet)
         return classes
     
     def _createSetOfClasses3D(self, imgSet, suffix=''):
-        classes =  self.__createSet(SetOfClasses3D, 'classes3D%s.sqlite', suffix)
+        classes =  self.__createSet(SetOfClasses3D,
+                                    'classes3D%s.sqlite', suffix)
         classes.setImages(imgSet)
         return classes
     
@@ -112,7 +134,11 @@ class EMProtocol(Protocol):
         return self.__createSet(SetOfMovies, 'movies%s.sqlite', suffix)
     
     def _createSetOfAngles(self, suffix=''):
-        return self.__createSet(SetOfAngles, 'tiltpairs_angles%s.sqlite', suffix)
+        return self.__createSet(SetOfAngles,
+                                'tiltpairs_angles%s.sqlite', suffix)
+
+    def _createSetOfFSCs(self, suffix=''):
+        return self.__createSet(SetOfFSCs, 'fscs%s.sqlite', suffix)
        
     def _defineSourceRelation(self, srcObj, dstObj):
         """ Add a DATASOURCE relation between srcObj and dstObj """
@@ -133,25 +159,33 @@ class EMProtocol(Protocol):
             child.write()
         Protocol._insertChild(self, key, child)
         
-    def _validateDim(self, obj1, obj2, errors, label1='Input 1', label2='Input 2'):
+    def _validateDim(self, obj1, obj2, errors,
+                     label1='Input 1', label2='Input 2'):
         """ Validate that obj1 and obj2 has the same dimensions.
         Params:
             obj1, obj2: input objects that can be Images or SetOfImages subclasses.
             errors: an error list where to append the error if not same dimensions
             label1, label2: labels for input objects used for the error message.
         """
-        d1 = obj1.getDim()
-        d2 = obj2.getDim()
-        if d1 != d2:
-            msg = '%s and %s have not the same dimensions, \n' % (label1, label2)
-            msg += 'which are %d and %d, respectively' % (d1, d2)
-            errors.append(msg)
+        if obj1 is not None and obj2 is not None:
+            d1 = obj1.getXDim()
+            d2 = obj2.getXDim()
+
+            if d1 is None:
+                errors.append("Can not get dimensions from %s." % label1)
+            elif d2 is None:
+                errors.append("Can not get dimensions from %s." % label2)
+            elif d1 != d2:
+                msg = '%s and %s have not the same dimensions, \n' % (label1, label2)
+                msg += 'which are %d and %d, respectively' % (d1, d2)
+                errors.append(msg)
             
     def __str__(self):
         return self.getObjLabel()
     
     def allowsDelete(self, obj):
-        if isinstance(obj, SetOfCoordinates):
+        if (isinstance(obj, SetOfCoordinates) or
+            isinstance(obj, CoordinatesTiltPair)):
             return True
         return False
         

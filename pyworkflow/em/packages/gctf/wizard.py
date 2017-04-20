@@ -19,7 +19,7 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 """
@@ -72,7 +72,8 @@ class GctfCTFWizard(CtfWizard):
             args = {'unit': UNIT_PIXEL,
                     'downsample': _value[0],
                     'lf': _value[1],
-                    'hf': _value[2]
+                    'hf': _value[2],
+                    'showInAngstroms': True
                     }
             d = CtfDownsampleDialog(form.root, provider, **args)
 
@@ -86,4 +87,3 @@ class GctfCTFWizard(CtfWizard):
     @classmethod    
     def getView(self):
         return "wiz_ctf_downsampling"  
-

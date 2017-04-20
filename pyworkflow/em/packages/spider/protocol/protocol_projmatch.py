@@ -21,11 +21,9 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jgomez@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
-"""
-"""
 
 from os.path import join
 
@@ -34,19 +32,21 @@ import pyworkflow.em as em
 import pyworkflow.protocol.params as params
 from pyworkflow.em.protocol import ProtRefine3D
 from pyworkflow.em.constants import ALIGN_PROJ
+from pyworkflow.em.data import Volume
 
 from ..spider import SpiderDocFile, writeScript, getScript, runScript
+from ..Spiderutils import nowisthetime
 from ..convert import ANGLE_PHI, ANGLE_PSI, ANGLE_THE, SHIFTX, SHIFTY, convertEndian, alignmentToRow
 from protocol_base import SpiderProtocol
 
 
 
-                               
 class SpiderProtRefinement(ProtRefine3D, SpiderProtocol):
-    """Iterative reference-based refinement of orientations
+    """ Iterative reference-based refinement of particles orientations,
+    based on the Spider AP SHC and AP REF programs.
     
     Iterative refinement improves the accuracy in the determination of orientations.
-    This improvement is accomplished by successive use of 
+    This improvement is accomplished by successive use of
     more finely-sampled reference projections.
     
     For more information, see:
@@ -61,7 +61,8 @@ class SpiderProtRefinement(ProtRefine3D, SpiderProtocol):
         form.addSection(label='Input')
 
         form.addParam('inputParticles', params.PointerParam, 
-                      pointerClass='SetOfParticles', 
+                      pointerClass='SetOfParticles',
+                      pointerCondition='hasCTF',
                       label="Input particles", important=True,
                       help='Select the input particles.\n')  
         
@@ -82,13 +83,11 @@ class SpiderProtRefinement(ProtRefine3D, SpiderProtocol):
         form.addParam('alignmentShift', params.IntParam, default=7,
                       label='Shift range',
                       help="Alignments are tested in the range +- this value")
-
-        #TODO: Add a wizard for this param
-        form.addParam('diameter', params.IntParam, default=349,
-                      label='Particle diameter (A)',
-                      help="Diameter of the structure (A) used in alignment search\n"
+        form.addParam('radius', params.IntParam, default=50,
+                      label='Particle radius (px)',
+                      help="Radius of the structure (px) used in alignment search\n"
                            "(Default is for ribosome. EDIT as needed.)\n"
-                           "Diameter is used to find radius for last alignment radius.\n")
+                           "This value is used to find radius for last alignment radius.\n")
         form.addParam('winFrac', params.FloatParam, default=0.95,
                       expertLevel=params.LEVEL_ADVANCED,
                       label='Projection diameter',
@@ -163,7 +162,7 @@ class SpiderProtRefinement(ProtRefine3D, SpiderProtocol):
         self._writeGroupFiles(partSet)
         
         # Convert the input volume
-        volPath = self._getExtraPath('vol001.vol')
+        volPath = self._getExtraPath('vol01.vol')
         em.ImageHandler().convert(self.input3DReference.get(), volPath)
         pwutils.moveFile(volPath, volPath.replace('.vol', '.stk'))
         
@@ -189,10 +188,11 @@ class SpiderProtRefinement(ProtRefine3D, SpiderProtocol):
         
         def getListStr(valueStr):
             return "'%s'" % ','.join(pwutils.getListFromValues(valueStr, nIter))
-        
+
+        diam = int(self.radius.get() * 2 * self.inputParticles.get().getSamplingRate())
         params = {'[shrange]': self.alignmentShift.get(),
                   '[iter-end]': self.numberOfIterations.get(),
-                  '[diam]': self.diameter.get(),
+                  '[diam]': diam,
                   '[win-frac]': self.winFrac.get(),
                   '[converg]': self.convergence.get(),
                   '[small-ang]': '1' if self.smallAngle else '0',
@@ -205,8 +205,8 @@ class SpiderProtRefinement(ProtRefine3D, SpiderProtocol):
                   '[sel_group_orig]': path('sel_group'),
                   '[sel_particles_orig]': path('group{***[grp]}_selfile'),
                   '[group_align_orig]': path('group{***[grp]}_align'),
-                  '[unaligned_images_orig]': path('group{***[grp]}_stack'),
-                  }        
+                  '[unaligned_images_orig]': path('group{***[grp]}_stack')
+                  }
         script('refine_settings.pam', params)
         for s in ['refine', 'prepare', 'grploop', 'mergegroups', 
                   'enhance', 'endmerge', 'smangloop', 'endrefine']:
@@ -218,7 +218,9 @@ class SpiderProtRefinement(ProtRefine3D, SpiderProtocol):
                   'pixelSize': partSet.getSamplingRate(),
                   'voltage': acq.getVoltage(),
                   'sphericalAberration': acq.getSphericalAberration(),
-                  'windowSize': partSet.getDimensions()[0]}
+                  'windowSize': partSet.getDimensions()[0],
+                  'nummps': self.numberOfThreads.get()
+                  }
         
         paramFile = open(self._getExtraPath('params.stk'), 'w+')
         paramFile.write("""
@@ -227,6 +229,7 @@ class SpiderProtRefinement(ProtRefine3D, SpiderProtocol):
     6 1    %(voltage)f             ; electron energy (kV)
     7 1    %(sphericalAberration)f ; spherical aberration (mm)
    17 1    %(windowSize)f          ; window size (pixels)
+   18 1    %(nummps)d              ; number of threads to use
                         """ % params)
         paramFile.close()        
         
@@ -283,7 +286,14 @@ class SpiderProtRefinement(ProtRefine3D, SpiderProtocol):
         pass    
     
     def createOutputStep(self):
-        pass
+        imgSet = self.inputParticles.get()
+        vol = Volume()
+        #FIXME: return the last completed iteration
+        vol.setFileName(self._getExtraPath('Refinement/final/bpr%02d.stk' % (self.numberOfIterations.get() + 1)))
+        vol.setSamplingRate(imgSet.getSamplingRate())
+
+        self._defineOutputs(outputVolume=vol)
+        self._defineSourceRelation(self.inputParticles, vol)
     
     #--------------------------- INFO functions -------------------------------------------- 
     def _validate(self):
@@ -317,8 +327,9 @@ class SpiderProtRefinement(ProtRefine3D, SpiderProtocol):
         else:
             summary.append('Angular increments: *%s*' % self.angSteps)
             summary.append('Angular range: *%s*' % self.angLimits)
-        
-        summary.append('Particle diameter: *%s* Angstroms' % self.diameter)
+
+        diam = int(self.radius.get() * 2 * self.inputParticles.get().getSamplingRate())
+        summary.append('Particle diameter: *%s* Angstroms' % diam)
         summary.append('Shift range: *%s* pixels' % self.alignmentShift)
         summary.append('Projection diameter: *%s* of window size' % self.winFrac)
         summary.append('Convergence criterion: *%s* of particles' % self.convergence)
@@ -356,8 +367,8 @@ class DefocusGroupInfo():
         # 
         self.sel = SpiderDocFile(self.selfile, 'w+')
         self.doc = SpiderDocFile(self.docfile, 'w+')
-        now = 'now' #FIXME
-        self.doc.writeComment("spi/dat   Generated by Scipion on %s" % now)
+        date, time, _ = nowisthetime()
+        self.doc.writeComment("spi/dat   Generated by Scipion on %s AT %s" % (date, time))
         self.doc.writeComment("  KEY       PSI,    THE,    PHI,   REF#,    EXP#,  CUM.{ROT,   SX,    SY},  NPROJ,   DIFF,      CCROT,    ROT,     SX,     SY,   MIR-CC")
         
     def addParticle(self, img):
@@ -367,7 +378,7 @@ class DefocusGroupInfo():
             self.defocus = (ctf.getDefocusU() + ctf.getDefocusV()) / 2.
         self.ih.convert(img, (self.counter, self.stackfile))
         self.sel.writeValues(self.counter)
-        #FIXME: use real alignmet/projection parameters, now using DUMMY values
+        #FIXME: use real alignment/projection parameters, now using DUMMY values
         alignRow = {ANGLE_PSI: 0.,
                     ANGLE_THE: 0.,
                     ANGLE_PHI: 0.,
@@ -387,5 +398,3 @@ class DefocusGroupInfo():
     def close(self):
         self.sel.close()
         self.doc.close()
-        
-    

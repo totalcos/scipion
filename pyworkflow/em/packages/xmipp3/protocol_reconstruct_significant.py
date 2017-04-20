@@ -20,12 +20,9 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jgomez@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
-"""
-This sub-package contains wrapper around reconstruct_significant Xmipp program
-"""
 
 from pyworkflow.utils import Timer
 from pyworkflow.em import *  
@@ -33,6 +30,7 @@ from pyworkflow.em.packages.xmipp3.convert import volumeToRow
 from pyworkflow.em.packages.xmipp3.xmipp3 import XmippMdRow
 from convert import writeSetOfClasses2D, writeSetOfParticles
 import pyworkflow.em.metadata as metadata
+from pyworkflow.protocol.params import *
 
 
 

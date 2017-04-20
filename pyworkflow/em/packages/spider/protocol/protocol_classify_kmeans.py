@@ -20,11 +20,10 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 
-from pyworkflow.em import Particle, Class2D
 from pyworkflow.protocol.params import IntParam
 
 from ..spider import SpiderDocFile
@@ -33,7 +32,8 @@ from protocol_classify_base import SpiderProtClassify
       
 
 class SpiderProtClassifyKmeans(SpiderProtClassify):
-    """ Diday's method, using 'CL CLA' 
+    """ Performs automatic K-Means clustering and classification
+    on factors produced by CA or PCA. Uses the Spider CL KM program
     """
     _label = 'classify kmeans'
     
@@ -42,8 +42,8 @@ class SpiderProtClassifyKmeans(SpiderProtClassify):
         
     #--------------------------- DEFINE param functions --------------------------------------------  
      
-    def _defineParams(self, form):
-        SpiderProtClassify._defineParams(self, form)
+    def _defineBasicParams(self, form):
+        SpiderProtClassify._defineBasicParams(self, form)
 
         form.addParam('numberOfClasses', IntParam, default=4, 
                       label='Number of classes',
@@ -60,42 +60,22 @@ class SpiderProtClassifyKmeans(SpiderProtClassify):
                              })
 
     def createOutputStep(self):
-        """ Create the SetOfClass from the docfiles with the images-class
-        assigment, the averages for each class.
+        """ Create the SetOfClass from the docfile with the images-class
+        assignment, the averages for each class.
         """
         particles = self.inputParticles.get()
-        sampling = particles.getSamplingRate()
         classes2D = self._createSetOfClasses2D(particles)
-            
-        for classId in range(1, self.numberOfClasses.get()+1):
-            class2D = Class2D()
-            class2D.setObjId(classId)
-            
-            avgImg = Particle()
-            avgImg.setSamplingRate(sampling)
-            avgFn = self._getPath(self.getClassDir(), 'classavg%03d.stk' % classId)
-            avgImg.setLocation(1, avgFn)
-            
-            class2D.setRepresentative(avgImg)
-            classes2D.append(class2D)
-            
-            docClass = self._getPath(self.getClassDir(), 
-                                     'docclass%03d.stk' % classId)
-            doc = SpiderDocFile(docClass)
-            
-            for values in doc.iterValues():
-                imgId = int(values[0])
-                img = particles[imgId]
-                if img is None:
-                    print ">>> WARNING: Particle with id '%d' found in docfile, but not in input particles." % imgId
-                else: 
-                    class2D.append(img)
-                
-            # Update information about number of particles in the class
-            classes2D.update(class2D)
-                
+        # Load the class assignment file from results
+        clsdoc = SpiderDocFile(self._getPath(self.getClassDir(), 'docassign.stk'))
+
+        # Here we are assuming that the order of the class assignment rows
+        # is the same for the input particles and the generated Spider stack
+        classes2D.classifyItems(updateItemCallback=self._updateParticle,
+                                updateClassCallback=self._updateClass,
+                                itemDataIterator=clsdoc.iterValues())
+
         self._defineOutputs(outputClasses=classes2D)
-        self._defineSourceRelation(self.inputParticles, classes2D)
+        self._defineSourceRelation(particles, classes2D)
          
     #--------------------------- INFO functions -------------------------------------------- 
     
@@ -121,5 +101,14 @@ class SpiderProtClassifyKmeans(SpiderProtClassify):
         return [msg]
     
     #--------------------------- UTILS functions --------------------------------------------
-    
-    
+
+    def _updateParticle(self, item, row):
+        _, classNum = row
+        item.setClassId(classNum)
+
+    def _updateClass(self, item):
+        classId = item.getObjId()
+        avgFile = self._getPath(self.getClassDir(), 'classavg%03d.stk' % classId)
+        rep = item.getRepresentative()
+        rep.setSamplingRate(item.getSamplingRate())
+        rep.setLocation(1, avgFile)

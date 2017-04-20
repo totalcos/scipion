@@ -2,6 +2,7 @@
 # *
 # * Authors:     J.M. De la Rosa Trevin (jmdelarosa@cnb.csic.es)
 # *              Laura del Cano (ldelcano@cnb.csic.es)
+# *              Grigory Sharov (sharov@igbmc.fr)
 # *
 # * Unidad de  Bioinformatica of Centro Nacional de Biotecnologia , CSIC
 # *
@@ -21,14 +22,9 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
-"""
-This module contains converter functions that will serve to:
-1. Write from base classes to Relion specific files
-2. Read from Relion files to base classes
-"""
 
 import sys
 import os
@@ -43,7 +39,7 @@ from pyworkflow.utils.path import (createLink, cleanPath, copyFile,
                                    replaceBaseExt, getExt, removeExt)
 import pyworkflow.em as em
 import pyworkflow.em.metadata as md
-
+from pyworkflow.em.packages.relion.constants import V1_3, V1_4, V2_0
 
 # This dictionary will be used to map
 # between CTFModel properties and Xmipp labels
@@ -58,6 +54,13 @@ COOR_DICT = OrderedDict([
              ("_x", md.RLN_IMAGE_COORD_X),
              ("_y", md.RLN_IMAGE_COORD_Y)
              ])
+
+COOR_EXTRA_LABELS = [
+    # Additional autopicking-related metadata
+    md.RLN_PARTICLE_AUTOPICK_FOM,
+    md.RLN_PARTICLE_CLASS,
+    md.RLN_ORIENT_PSI
+    ]
 
 CTF_DICT = OrderedDict([
        ("_defocusU", md.RLN_CTF_DEFOCUSU),
@@ -103,23 +106,41 @@ ALIGNMENT_DICT = OrderedDict([
 
 def getEnviron():
     """ Setup the environment variables needed to launch Relion. """
+    
     environ = Environ(os.environ)
-    environ.update({
-            'PATH': join(os.environ['RELION_HOME'], 'bin'),
-            'LD_LIBRARY_PATH': join(os.environ['RELION_HOME'], 'lib') + ":" + join(os.environ['RELION_HOME'], 'lib64'),
-            'SCIPION_MPI_FLAGS': os.environ.get('RELION_MPI_FLAGS', ''),
-            }, position=Environ.BEGIN)
+
+    relionHome = os.environ['RELION_HOME']
+    
+    binPath = join(relionHome, 'bin')
+    libPath = join(relionHome, 'lib') + ":" + join(relionHome, 'lib64')
+    
+    if not binPath in environ['PATH']:
+        environ.update({'PATH': binPath,
+                        'LD_LIBRARY_PATH': libPath,
+                        'SCIPION_MPI_FLAGS': os.environ.get('RELION_MPI_FLAGS', ''),
+                        }, position=Environ.BEGIN)
+    
+    # Take Scipion CUDA library path
+    cudaLib = environ.getFirst(('RELION_CUDA_LIB', 'CUDA_LIB'))
+    environ.addLibrary(cudaLib)
+
     return environ
 
 
 def getVersion():
     path = os.environ['RELION_HOME']
-    if '1.4' in path:
-        return '1.4'
-    elif '1.3' in path:
-        return '1.3'
-    else:
-        return ''
+    for v in getSupportedVersions():
+        if v in path:
+            return v
+    return ''
+
+
+def isVersion2():
+    return getVersion().startswith(V2_0)
+
+
+def getSupportedVersions():
+    return [V1_3, V1_4, V2_0]
 
 
 def locationToRelion(index, filename):
@@ -142,7 +163,7 @@ def relionToLocation(filename):
         return em.NO_INDEX, str(filename)
 
 
-def objectToRow(obj, row, attrDict, extraLabels={}):
+def objectToRow(obj, row, attrDict, extraLabels=[]):
     """ This function will convert an EMObject into a XmippMdRow.
     Params:
         obj: the EMObject instance (input)
@@ -172,7 +193,7 @@ def objectToRow(obj, row, attrDict, extraLabels={}):
             row.setValue(label, value)
 
 
-def rowToObject(row, obj, attrDict, extraLabels={}):
+def rowToObject(row, obj, attrDict, extraLabels=[]):
     """ This function will convert from a XmippMdRow to an EMObject.
     Params:
         row: the XmippMdRow instance (input)
@@ -341,7 +362,7 @@ def coordinateToRow(coord, coordRow, copyId=True):
     """ Set labels values from Coordinate coord to md row. """
     if copyId:
         setRowId(coordRow, coord)
-    objectToRow(coord, coordRow, COOR_DICT)
+    objectToRow(coord, coordRow, COOR_DICT, extraLabels=COOR_EXTRA_LABELS)
     #FIXME: THE FOLLOWING IS NOT CLEAN
     if coord.getMicId():
         coordRow.setValue(md.RLN_MICROGRAPH_NAME, str(coord.getMicId()))
@@ -349,15 +370,23 @@ def coordinateToRow(coord, coordRow, copyId=True):
 
 def rowToCoordinate(coordRow, coord):
     """ Create a Coordinate from a row of a meta """
-    rowToObject(coordRow, coord, COOR_DICT)
-    #FIXME: THE FOLLOWING IS NOT CLEAN
-    try:
-        coord.setMicId(int(coordRow.getValue(md.RLN_MICROGRAPH_NAME)))
-    except Exception:
-        pass
+    # Check that all required labels are present in the row
+    if coordRow.containsAll(COOR_DICT):
+        coord = em.Coordinate()
+        rowToObject(coordRow, coord, COOR_DICT, extraLabels=COOR_EXTRA_LABELS)
+            
+        #FIXME: THE FOLLOWING IS NOT CLEAN
+        try:
+            coord.setMicId(int(coordRow.getValue(md.RLN_MICROGRAPH_NAME)))
+        except Exception:
+            pass
+    else:
+        coord = None
+        
+    return coord
 
-    
-def imageToRow(img, imgRow, imgLabel, **kwargs):
+
+def imageToRow(img, imgRow, imgLabel=md.RLN_IMAGE_NAME, **kwargs):
     # Provide a hook to be used if something is needed to be 
     # done for special cases before converting image to row
     preprocessImageRow = kwargs.get('preprocessImageRow', None)
@@ -402,7 +431,7 @@ def particleToRow(part, partRow, **kwargs):
         coordinateToRow(coord, partRow, copyId=False)
     if part.hasMicId():
         partRow.setValue(md.RLN_MICROGRAPH_ID, long(part.getMicId()))
-        # If the row does not contains the micrgraphs name
+        # If the row does not contains the micrograph name
         # use a fake micrograph name using id to relion
         # could at least group for CTF using that
         if not partRow.hasLabel(md.RLN_MICROGRAPH_NAME):
@@ -523,7 +552,7 @@ def setOfImagesToMd(imgSet, imgMd, imgToFunc, **kwargs):
     
     if 'alignType' not in kwargs:
         kwargs['alignType'] = imgSet.getAlignment()
-        
+
     for img in imgSet:
         objId = imgMd.addObject()
         imgRow = md.Row()
@@ -543,33 +572,58 @@ def writeSetOfParticles(imgSet, starFile,
     kwargs['filesDict'] = filesDict
     partMd = md.MetaData()
     setOfImagesToMd(imgSet, partMd, particleToRow, **kwargs)
+    
+    # Remove Magnification from metadata to avoid wrong values of pixel size.
+    # In Relion if Magnification and DetectorPixelSize are in metadata,
+    # pixel size is ignored in the command line.
+    partMd.removeLabel(md.RLN_CTF_MAGNIFICATION)
+
     blockName = kwargs.get('blockName', 'Particles')
     partMd.write('%s@%s' % (blockName, starFile))
+
     
-    
-def writeReferences(inputSet, outputRoot):
-    """ Write an references star and stack files from
-    a given SetOfAverages or SetOfClasses2D.
+def writeReferences(inputSet, outputRoot, useBasename=False, **kwargs):
+    """
+    Write references star and stack files from SetOfAverages or SetOfClasses2D/3D.
+    Params:
+        inputSet: the input SetOfParticles to be converted
+        outputRoot: where to write the output files.
+        basename: If True, use the basename of the stack for setting path.
     """
     refsMd = md.MetaData()
     stackFile = outputRoot + '.stk'
-    baseStack = basename(stackFile)
+    stackName = basename(stackFile) if useBasename else stackFile
     starFile = outputRoot + '.star'
     ih = em.ImageHandler()
-     
+    row = md.Row()
+
+    def _convert(item, i, convertFunc):
+        index = i + 1
+        ih.convert(item, (index, stackFile))
+        item.setLocation(index, stackName)
+        convertFunc(item, row, **kwargs)
+        row.writeToMd(refsMd, refsMd.addObject())
+
     if isinstance(inputSet, em.SetOfAverages):
-        row = md.Row()
         for i, img in enumerate(inputSet):
-            ih.convert(img, (i+1, stackFile))
-            img.setLocation((i+1, baseStack)) # make the star with relative
-            particleToRow(img, row)
-            row.writeToMd(refsMd, refsMd.addObject())
-        refsMd.write(starFile)
-            
+            _convert(img, i, particleToRow)
+
     elif isinstance(inputSet, em.SetOfClasses2D):
-        pass
+        for i, rep in enumerate(inputSet.iterRepresentatives()):
+            _convert(rep, i, particleToRow)
+
+    elif isinstance(inputSet, em.SetOfClasses3D):
+        for i, rep in enumerate(inputSet.iterRepresentatives()):
+            _convert(rep, i, imageToRow)
+
+    elif isinstance(inputSet, em.SetOfVolumes):
+        for i, vol in enumerate(inputSet):
+            _convert(vol, i, imageToRow)
+
     else:
-        raise Exception('Invalid object type: %s' % type(inputSet)) 
+        raise Exception('Invalid object type: %s' % type(inputSet))
+
+    refsMd.write(starFile)
 
 
 def micrographToRow(mic, micRow, **kwargs):
@@ -773,7 +827,7 @@ def convertBinaryVol(vol, outputDir):
         vol: input volume object to be converted.
         outputDir: where to put the converted file(s)
     Return:
-        new file name of the volume (convrted or not).
+        new file name of the volume (converted or not).
     """
     
     ih = em.ImageHandler()
@@ -811,7 +865,12 @@ def readSetOfCoordinates(coordSet, coordFiles):
     micSet = coordSet.getMicrographs()
     
     for mic, coordFn in izip(micSet, coordFiles):
-        readCoordinates(mic, coordFn, coordSet)
+        if not os.path.exists(coordFn):
+            print "WARNING: Missing coordinates star file: ", coordFn
+        try:
+            readCoordinates(mic, coordFn, coordSet)
+        except Exception:
+            print "WARNING: Error reading coordinates star file: ", coordFn
         
 
 def readCoordinates(mic, fileName, coordsSet):
@@ -822,3 +881,97 @@ def readCoordinates(mic, fileName, coordsSet):
         coord.setMicrograph(mic)
         coordsSet.append(coord)
 
+
+def writeSetOfCoordinates(coordSet, outputDir):
+    pass
+
+
+def writeCoordinates(mic, fileName):
+    pass
+
+
+def openStar(fn, extraLabels=False):
+    # We are going to write metadata directy to file to do it faster
+    f = open(fn, 'w')
+    s = """
+data_
+
+loop_
+_rlnCoordinateX
+_rlnCoordinateY
+"""
+    if extraLabels:
+        s += "_rlnClassNumber\n"
+        s += "_rlnAutopickFigureOfMerit\n"
+        s += "_rlnAnglePsi\n"
+    f.write(s)
+    return f
+
+
+def writeSetOfCoordinates(posDir, coordSet, getStarFileFunc, scale=1):
+    """ Convert a SetOfCoordinates to Relion star files.
+    Params:
+        posDir: the output directory where to generate the files.
+        coordSet: the input SetOfCoordinates that will be converted.
+         getStarFileFunc: function object that receives the micrograph name
+            and return the coordinates star file (only the base filename).
+        scale: pass a value if the coordinates have a different scale.
+            (for example when extracting from micrographs with a different
+            pixel size than during picking)
+    """
+    boxSize = coordSet.getBoxSize() or 100
+
+    # Create a dictionary with the pos filenames for each micrograph
+    posDict = {}
+    for mic in coordSet.iterMicrographs():
+        starFile = getStarFileFunc(mic)
+        if starFile is not None:
+            posFn = os.path.basename(starFile)
+            posDict[mic.getObjId()] = join(posDir, posFn)
+
+    f = None
+    lastMicId = None
+    c = 0
+
+    extraLabels = coordSet.getFirstItem().hasAttribute('_rlnClassNumber')
+    doScale = abs(scale - 1) > 0.001
+
+    print "Scaling: %s, factor: %s" % (doScale, scale)
+
+    for coord in coordSet.iterItems(orderBy='_micId'):
+        micId = coord.getMicId()
+        if not micId in posDict:
+            print "micId %s not found" % micId
+            continue
+
+        if micId != lastMicId:
+            # we need to close previous opened file
+            if f:
+                f.close()
+                c = 0
+            f = openStar(posDict[micId], extraLabels)
+            lastMicId = micId
+        c += 1
+
+        if doScale:
+            x = coord.getX() * scale
+            y = coord.getY() * scale
+            print "coord: %s %s, new: %s %s" % (coord.getX(), coord.getY(),
+                                                x, y)
+        else:
+            x = coord.getX()
+            y = coord.getY()
+
+        if not extraLabels:
+            f.write("%d %d \n" % (x, y))
+        else:
+            f.write("%d %d %d %0.6f %0.6f\n"
+                    % (x, y,
+                       coord._rlnClassNumber,
+                       coord._rlnAutopickFigureOfMerit,
+                       coord._rlnAnglePsi))
+
+    if f:
+        f.close()
+
+    return posDict.values()

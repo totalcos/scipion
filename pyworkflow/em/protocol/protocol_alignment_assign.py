@@ -20,7 +20,7 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 
@@ -70,7 +70,7 @@ class ProtAlignmentAssign(ProtAlign2D):
         # If alignment is found for this particle set the alignment info on the output particle, if not do not write that item
         if alignedParticle is not None:
             alignment = alignedParticle.getTransform()
-            alignment.scaleShifts2D(scale)
+            alignment.scaleShifts(scale)
             item.setTransform(alignment)
         else:
             item._appendItem = False

@@ -20,20 +20,16 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jgomez@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
-from pyworkflow.em.packages.xmipp3.convert import xmippToLocation
-"""
-This sub-package contains wrapper around kendersom Xmipp program
-"""
 
 from os.path import join, dirname, exists
 from pyworkflow.em import *  
 import xmipp
 
 import xmipp3
-from convert import writeSetOfParticles, readSetOfClasses2D
+from convert import writeSetOfParticles, readSetOfClasses2D, xmippToLocation
 from glob import glob
 
 

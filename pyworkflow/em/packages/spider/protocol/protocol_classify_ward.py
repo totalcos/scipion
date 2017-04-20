@@ -20,7 +20,7 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 
@@ -29,7 +29,11 @@ from protocol_classify_base import SpiderProtClassifyCluster
       
 
 class SpiderProtClassifyWard(SpiderProtClassifyCluster):
-    """ Ward's method, using 'CL HC' 
+    """ Finds clusters of images/elements in factor space
+    (or a selected subspace) by using Diday's method of moving centers,
+    and applies hierarchical ascendant classification (HAC) (using
+    Ward's method) to the resulting cluster centers.
+    Uses the Spider CL HC program
     """
     _label = 'classify ward'
     

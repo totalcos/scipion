@@ -20,7 +20,7 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 
@@ -29,7 +29,9 @@ from protocol_classify_base import SpiderProtClassifyCluster
       
 
 class SpiderProtClassifyDiday(SpiderProtClassifyCluster):
-    """ Diday's method, using 'CL CLA' 
+    """ Performs automatic clustering using Diday's method and
+    Hierarchical Ascendant Classification (HAC) using Ward's criterion
+    on factors produced by CA or PCA. Uses the Spider CL CLA program
     """
     _label = 'classify diday'
     
@@ -40,6 +42,10 @@ class SpiderProtClassifyDiday(SpiderProtClassifyCluster):
     
     def _validate(self):
         errors = []
+        # Dirty way to validate that the SEQ file is not used as input here
+        if '_SEQ' in self.pcaFile.get().getFileName():
+            errors.append("Diday's methods does not work with SEQ file. "
+                          "Please choose the IMC file.")
         return errors
     
     def _citations(self):

@@ -20,7 +20,7 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jgomez@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 
@@ -72,7 +72,7 @@ class DogPickerProtPicking(ProtParticlePicking):
     def _insertAllSteps(self):
 
         self._params = {}
-        # diameter must be passed in Armstrongs and therefore should be converted
+        # diameter must be passed in Angstrongs and therefore should be converted
         self._params['diam'] = self.diameter.get() * self.getInputMicrographs().getSamplingRate()
         # self._params['num-slices'] = self.numberSizes.get()
         # self._params['size-range'] = self.sizeRange.get()

@@ -29,6 +29,7 @@
 ;   [small-ang]          Small angle refinement flag (1 = true)
 ;   [sp_winsiz]          Image/window size = volume size
 ;   [converg]            Convergence criterion fraction
+;   [nummps]             Number of threads to use (0=all)
 ;
 ;<b> ============== DO NOT COPY FROM WEB BROWSER ==============</b>
 ;<b> ---------Set Refinement parameters from parameter file ----------</b>
@@ -43,6 +44,9 @@
    [params]           ; Parameter doc. file
 
  UD 17,[sp_winsiz]    ; Get windowsize (pixels), used to find projection radius 
+   [params]           ; Parameter doc. file
+
+ UD 18,[nummps]       ; Get number of threads to use (0=all)
    [params]           ; Parameter doc. file
 
  UD E                 ; End params doc. file usage
@@ -99,15 +103,15 @@
 
  GLO [input_dir]             = 'input/'                                     ; Main dir. for input files
 
- GLO [vol_orig]              = '../Reconstruction/vol{**[iter]}'            ; Initial reconstructed volume   
+ GLO [vol_orig]              = '../vol{**[iter]}'                           ; Initial reconstructed volume
 
- GLO [sel_group_orig]        = '../Reconstruction/sel_group_cclim'          ; Group selection doc file                    
+ GLO [sel_group_orig]        = '../sel_group'                               ; Group selection doc file
 
- GLO [sel_particles_orig]    = '../Reconstruction/sel_particles_{***[grp]}' ; Particle selection doc file
+ GLO [sel_particles_orig]    = '../group{***[grp]}_selfile'                 ; Particle selection doc file
 
- GLO [group_align_orig]      = '../Alignment/align_{**[iter]}_{***[grp]}'   ; Initial alignment parameter file 
+ GLO [group_align_orig]      = '../group{***[grp]}_align'                   ; Initial alignment parameter file
 
- GLO [unaligned_images_orig] = '../Alignment/data{***[grp]}'                ; Original unaligned images stack
+ GLO [unaligned_images_orig] = '../group{***[grp]}_stack'                   ; Original unaligned images stack
 
  ; Following two files OPTIONAL (Only needed if using amplitude enhancement)
  GLO [scattering_doc]        = 'input/scattering'                           ; OPTIONAL enhancement document input

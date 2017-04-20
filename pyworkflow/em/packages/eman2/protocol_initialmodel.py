@@ -20,12 +20,9 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jgomez@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
-"""
-This sub-package contains wrapper around EMAN initialmodel program
-"""
 
 import os
 from glob import glob
@@ -147,11 +144,7 @@ class EmanProtInitModel(ProtInitialVolume):
     #--------------------------- INFO functions -------------------------------------------- 
     def _validate(self):
         errors = []
-        if not eman2.getVersion():
-            errors.append("We couldn't detect EMAN version. ")
-            errors.append("Please, check your configuration file and change EMAN2DIR.")
-            errors.append("The path should contains either '2.11' or '2.12' ")
-            errors.append("to properly detect the version.")
+        eman2.validateVersion(self, errors)
         return errors
     
     def _summary(self):
@@ -160,7 +153,7 @@ class EmanProtInitModel(ProtInitialVolume):
             summary.append("Output volumes not ready yet.")
         else:
             summary.append("Input Images: %s" % self.inputSet.get().getNameId())
-            summary.append("Output initials volumes: %s" % self.outputVolumes.get())
+            summary.append("Output initial volumes: %s" % self.outputVolumes.getSize())
         return summary
     
     #--------------------------- UTILS functions --------------------------------------------

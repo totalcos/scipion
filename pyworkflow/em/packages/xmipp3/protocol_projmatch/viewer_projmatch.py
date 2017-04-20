@@ -22,7 +22,7 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 """
@@ -700,7 +700,7 @@ Examples:
             legends = []
             show = False
             plot_title = 'Ref3D_%s' % ref3d
-            a = xplotter.createSubPlot(plot_title, 'Armstrongs^-1', 'FSC', yformat=False)
+            a = xplotter.createSubPlot(plot_title, 'frequency(1/A)', 'FSC', yformat=False)
             legends = []
             for it in self._iterations:
                 file_name = self.protocol._getFileName('resolutionXmdFile', iter=it, ref=ref3d)

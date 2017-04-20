@@ -20,12 +20,10 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
-"""
-This sub-package will contains Spider protocols
-"""
+
 import os
 from os.path import join, dirname, abspath
 import subprocess
@@ -48,7 +46,7 @@ SCRIPTS_DIR = 'scripts'
 
 # Match strings of the type
 # key = value ; some comment
-REGEX_KEYVALUE = re.compile("(?P<prefix>[^[]*)(?P<var>\[?[a-zA-Z0-9_-]+\]?)(?P<s1>\s*)=(?P<s2>\s*)(?P<value>\S+)(?P<suffix>\s+.*)")
+REGEX_KEYVALUE = re.compile("(?P<prefix>[^[a-zA-Z0-9_-]*)(?P<var>\[?[a-zA-Z0-9_-]+\]?)(?P<s1>\s*)=(?P<s2>\s*)(?P<value>\S+)(?P<suffix>\s+.*)")
 # Match strings of the type [key]value
 # just before a 'fr l' line
 REGEX_KEYFRL = re.compile("(?P<var>\[?[a-zA-Z0-9_-]+\]?)(?P<value>\S+)(?P<suffix>\s+.*)")
@@ -61,7 +59,9 @@ def getEnviron():
     """
     global SPIDER
     env = Environ(os.environ)
-    SPIDER_DIR = env.get('SPIDER_DIR', None) # Scipion definition
+    SPIDER_DIR = env.getFirst(('SPIDER_HOME', 'SPIDER_DIR'), mandatory=True)  #
+    # Scipion
+    # definition
     
     if SPIDER_DIR is None:
         errors = ''
@@ -113,7 +113,7 @@ def writeScript(inputScript, outputScript, paramsDict):
     fOut = open(outputScript, 'w')
     inHeader = True # After the end of header, not more value replacement
     inFrL = False
-    
+
     for i, line in enumerate(fIn):
         if END_HEADER in line:
             inHeader = False

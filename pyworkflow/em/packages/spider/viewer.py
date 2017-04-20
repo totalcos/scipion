@@ -20,12 +20,11 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 """
-This module implement the wrappers around xmipp_showj
-visualization program.
+This module implements viewers for Spider protocols.
 """
 
 from pyworkflow.viewer import DESKTOP_TKINTER, WEB_DJANGO

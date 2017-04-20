@@ -21,12 +21,9 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
-"""
-This sub-package contains protocol for masks operations
-"""
 
 from pyworkflow.em import *
 from pyworkflow.utils import *  
@@ -187,6 +184,8 @@ class XmippProtMaskParticles(ProtMaskParticles, XmippProcessParticles, XmippProt
         ProtMaskParticles.__init__(self, **kwargs)
         XmippProcessParticles.__init__(self, **kwargs)
         XmippProtMask.__init__(self, **kwargs)
+        self.allowThreads = False
+        self.allowMpi = False
     
     #--------------------------- DEFINE param functions --------------------------------------------
     def _defineProcessParams(self, form):
@@ -231,6 +230,8 @@ class XmippProtMaskVolumes(ProtMaskVolumes, XmippProcessVolumes, XmippProtMask, 
         ProtMaskVolumes.__init__(self, **kwargs)
         XmippProcessVolumes.__init__(self, **kwargs)
         XmippProtMask.__init__(self, **kwargs)
+        self.allowMpi = False
+        self.allowThreads = False
     
     #--------------------------- DEFINE param functions --------------------------------------------
     def _defineProcessParams(self, form):

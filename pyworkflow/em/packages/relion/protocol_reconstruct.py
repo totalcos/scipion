@@ -20,7 +20,7 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 
@@ -185,7 +185,9 @@ class ProtRelionReconstruct(ProtReconstruct3D):
         """ Should be overriden in subclasses to 
         return summary message for NORMAL EXECUTION. 
         """
-        return []
+        errors = []
+        self.validatePackageVersion('RELION_HOME', errors)
+        return errors
     
     def _summary(self):
         """ Should be overriden in subclasses to 

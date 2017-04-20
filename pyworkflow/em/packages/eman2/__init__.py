@@ -20,7 +20,7 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 """
@@ -34,7 +34,6 @@ _references = ['Tang2007']
 
 
 from eman2 import *
-from data import *
 from protocol_boxing import EmanProtBoxing
 from protocol_initialmodel import EmanProtInitModel
 from protocol_reconstruct import EmanProtReconstruct

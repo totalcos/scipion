@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # **************************************************************************
 # *
 # * Authors:     Laura del Cano (ldelcano@cnb.csic.es)
@@ -21,12 +22,9 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
-"""
-This sub-package contains protocols for creating 2D masks.
-"""
 
 from pyworkflow.em import *  
 from ..convert import getImageLocation
@@ -51,7 +49,7 @@ class XmippProtCreateMask2D(ProtCreateMask2D, XmippGeometricalMask2D):
         
         # For geometrical sources
         form.addParam('samplingRate', FloatParam, default=1, 
-                      label="Sampling Rate (A/px)")
+                      label="Sampling Rate (Å/px)")
         
         XmippGeometricalMask2D.defineParams(self, form, 
                                             isGeometry=True, 

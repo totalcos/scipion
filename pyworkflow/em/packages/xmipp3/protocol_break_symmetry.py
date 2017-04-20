@@ -20,12 +20,9 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
-"""
-This sub-package contains wrapper around angular_break_symmetry Xmipp program
-"""
 
 from pyworkflow.object import String
 from pyworkflow.protocol.params import StringParam
@@ -35,7 +32,13 @@ import pyworkflow.em.metadata as md
 
  
 class XmippProtAngBreakSymmetry(ProtProcessParticles):
-    """ Classify particles according their similarity to the others in order to detect outliers. """
+    """
+    Given an input set of particles with angular assignment, find an
+    equivalent angular assignment for a given symmetry.
+
+    Be aware that input symmetry values follows Xmipp conventions as described in:
+    http://xmipp.cnb.csic.es/twiki/bin/view/Xmipp/Symmetry
+    """
     _label = 'break symmetry'
 
     #--------------------------- DEFINE param functions --------------------------------------------

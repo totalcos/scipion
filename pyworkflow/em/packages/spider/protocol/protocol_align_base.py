@@ -21,13 +21,10 @@
 # * 02111-1307  USA
 # *
 # *  All comments concerning this program package may be sent to the
-# *  e-mail address 'jmdelarosa@cnb.csic.es'
+# *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
 
-"""
-This sub-package contains protocol for particles filters operations
-"""
 from os.path import join, exists
 
 from pyworkflow.protocol.params import IntParam, EnumParam
@@ -45,6 +42,8 @@ class SpiderProtAlign(ProtAlign2D, SpiderProtocol):
     def __init__(self, script, alignDir, **args):
         ProtAlign2D.__init__(self, **args)
         SpiderProtocol.__init__(self, **args)
+        # To avoid showing MPI box due to duplicated init
+        self.allowMpi = False
         self._script = script
         self._alignDir = alignDir
         
@@ -105,9 +104,11 @@ class SpiderProtAlign(ProtAlign2D, SpiderProtocol):
         imgSet = self._createSetOfParticles()
         imgSet.copyInfo(particles)
         imgSet.setAlignment2D()
-        
-        imgSet.readStack(outputStk, 
-                         postprocessImage=lambda img: img.setTransform(Transform()))
+
+        imgSet.copyItems(particles,
+                         updateItemCallback=self._updateItem,
+                         itemDataIterator=iter(range(1, particles.getSize()+1)))
+
         self._defineOutputs(outputParticles=imgSet)
         self._defineTransformRelation(self.inputParticles, imgSet)
         
@@ -130,5 +131,9 @@ class SpiderProtAlign(ProtAlign2D, SpiderProtocol):
             errors.append("*innerRadius* should be less than *outerRadius*.")
         
         return errors
+
+    def _updateItem(self, item, index):
+        item.setLocation(index, self._getFileName('particlesAligned'))
+        item.setTransform(Transform())
     
 
