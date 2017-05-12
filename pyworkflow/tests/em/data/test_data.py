@@ -618,4 +618,16 @@ class TestCopyItems(BaseTest):
         item._list = CsvList()
         item._list.set([1.0, 2.0])
 
+    def test_listType(self):
+        LIST = [1,11, 111]
+        l = CsvList(pType=int, value=[1,11, 111])
+
+        for i1, i2 in zip(LIST, l):
+            self.assertTrue(i1, i2)
+
+
+
+
+
+
 

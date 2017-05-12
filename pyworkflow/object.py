@@ -933,10 +933,10 @@ class CsvList(Scalar, list):
     in a single DB row separated by comma.
     pType: the type of the list elements, int, bool, str"""
     def __init__(self, pType=str, **kwargs):
+        self._pType = pType
         Scalar.__init__(self, **kwargs)
         list.__init__(self)
-        self._pType = pType
-        
+
     def _convertValue(self, value):
         """ Value should be a str with comma separated values or a list.
         """
