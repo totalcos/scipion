@@ -33,7 +33,7 @@ from pyworkflow.em.data import (SetOfMicrographs, SetOfCoordinates,
                                 SetOfClasses2D, SetOfClasses3D, SetOfClassesVol,
                                 SetOfVolumes, SetOfCTF, SetOfMovies, SetOfFSCs,
                                 SetOfMovieParticles, SetOfAverages,
-                                SetOfNormalModes)
+                                SetOfNormalModes, SetOfFilaments)
 from pyworkflow.em.constants import (RELATION_SOURCE, RELATION_TRANSFORM,
                                      RELATION_CTF)
 from pyworkflow.em.data_tiltpairs import (SetOfAngles, CoordinatesTiltPair,
@@ -73,6 +73,12 @@ class EMProtocol(Protocol):
                                     'coordinates%s.sqlite', suffix)
         coordSet.setMicrographs(micSet)       
         return coordSet
+
+    def _createSetOfFilaments(self, micSet, suffix=''):
+        filamentSet = self.__createSet(SetOfFilaments,
+                                       'filaments%s.sqlite', suffix)
+        filamentSet.setMicrographs(micSet)
+        return filamentSet
 
     def _createCoordinatesTiltPair(self, micTiltPairs, uCoords, tCoords,
                                    angles, suffix):

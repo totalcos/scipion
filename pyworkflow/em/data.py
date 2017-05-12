@@ -1864,3 +1864,116 @@ class FSC(EMObject):
 class SetOfFSCs(EMSet):
     """Represents a set of Volumes"""
     ITEM_TYPE = FSC
+
+
+#---------------- Data classes for Helical processing ---------------
+class Filament(EMObject):
+    """ A filament is composed by two pairs of coordinates
+    (x1, y1) and (x2, y2) that are positions in a micrograph.
+    """
+
+    def __init__(self, **kwargs):
+        EMObject.__init__(self, **kwargs)
+        self._micrographPointer = Pointer(objDoStore=False)
+        self._endpoints = CsvList(pType=int,
+                                  value=kwargs.get('endpoints', [0, 0, 0, 0]))
+        self._y = Integer(kwargs.get('y', None))
+        self._micId = Integer()
+        self._micName = String()
+
+    def getEndpoints(self):
+        return list(self._endpoints)
+
+    def setEndpoints(self, endpoints):
+        self._endpoints.set(endpoints)
+
+    def scale(self, factor):
+        """ Scale both x and y coordinates by a given factor.
+        """
+        raise Exception('Not implemented yet')
+
+    def getMicrograph(self):
+        """ Return the micrograph object to which
+        this coordinate is associated.
+        """
+        return self._micrographPointer.get()
+
+    def setMicrograph(self, micrograph):
+        """ Set the micrograph to which this coordinate belongs. """
+        self._micrographPointer.set(micrograph)
+        self._micId.set(micrograph.getObjId())
+        self._micName.set(micrograph.getMicName())
+
+    def copyInfo(self, filament):
+        """ Copy information from other coordinate. """
+        self.setEndpoints(filament.getEndpoints())
+        self.setObjId(filament.getObjId())
+
+    def getMicId(self):
+        return self._micId.get()
+
+    def setMicId(self, micId):
+        self._micId.set(micId)
+
+    def setMicName(self, micName):
+        self._micName.set(micName)
+
+    def getMicName(self):
+        return self._micName.get()
+
+
+class SetOfFilaments(EMSet):
+    ITEM_TYPE = Filament
+
+    def __init__(self, **kwargs):
+        EMSet.__init__(self, **kwargs)
+        self._micrographsPointer = Pointer()
+
+    def iterMicrographs(self):
+        """ Iterate over the micrographs set associated with this
+        set of coordinates.
+        """
+        return self.getMicrographs()
+
+    def iterFilaments(self, micrograph=None):
+        """ Iterate over the filaments associated with a micrograph.
+        If micrograph=None, the iteration is performed over the whole
+        set of filaments.
+        """
+        if micrograph is None:
+            micId = None
+        elif isinstance(micrograph, int):
+            micId = micrograph
+        elif isinstance(micrograph, Micrograph):
+            micId = micrograph.getObjId()
+        else:
+            raise Exception(
+                'Invalid input micrograph of type %s' % type(micrograph))
+
+        # Iterate over all coordinates if micId is None,
+        # otherwise use micId to filter the where selection
+        coordWhere = '1' if micId is None else '_micId=%d' % micId
+
+        for coord in self.iterItems(where=coordWhere):
+            yield coord
+
+    def getMicrographs(self):
+        """ Returns the SetOfMicrographs associated with
+        this SetOfCoordinates"""
+        return self._micrographsPointer.get()
+
+    def setMicrographs(self, micrographs):
+        """ Set the SetOfMicrograph associates with
+        this set of coordinates.
+         """
+        self._micrographsPointer.set(micrographs)
+
+    def getFiles(self):
+        filePaths = set()
+        filePaths.add(self.getFileName())
+        return filePaths
+
+    def __str__(self):
+        s = "%s (%d items)" % (self.getClassName(), self.getSize())
+
+        return s
