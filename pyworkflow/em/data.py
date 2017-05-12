@@ -1877,7 +1877,6 @@ class Filament(EMObject):
         self._micrographPointer = Pointer(objDoStore=False)
         self._endpoints = CsvList(pType=int,
                                   value=kwargs.get('endpoints', [0, 0, 0, 0]))
-        self._y = Integer(kwargs.get('y', None))
         self._micId = Integer()
         self._micName = String()
 

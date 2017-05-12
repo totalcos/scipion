@@ -35,6 +35,7 @@ _references = ['Tang2007']
 
 from eman2 import *
 from protocol_boxing import EmanProtBoxing
+from protocol_helixboxer import EmanProtHelixBoxer
 from protocol_initialmodel import EmanProtInitModel
 from protocol_reconstruct import EmanProtReconstruct
 from protocol_refineasy import EmanProtRefine
