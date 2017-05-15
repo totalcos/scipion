@@ -35,9 +35,9 @@ from os.path import join, exists
 
 import pyworkflow as pw
 import pyworkflow.em as em
-from pyworkflow.em.data import Coordinate
+import pyworkflow.utils as pwutils
+from pyworkflow.em.data import Coordinate, Filament
 from pyworkflow.em.packages.eman2 import getEmanCommand, getEnviron
-from pyworkflow.utils.path import createLink, removeBaseExt, replaceBaseExt, cleanPath
 
 
 def loadJson(jsonFn):
@@ -121,7 +121,7 @@ def readSetOfCoordinates(workDir, micSet, coordSet):
     jsonFninfo = join(workDir, 'info/')
     
     for mic in micSet:
-        micBase = removeBaseExt(mic.getFileName())
+        micBase = pwutils.removeBaseExt(mic.getFileName())
         micPosFn = ''.join(glob.glob(jsonFninfo + '*' + micBase + '_info.json'))
         readCoordinates(mic, micPosFn, coordSet)
     coordSet.setBoxSize(size)
@@ -140,6 +140,41 @@ def readCoordinates(mic, fileName, coordsSet):
                 coord.setPosition(x, y)
                 coord.setMicrograph(mic)
                 coordsSet.append(coord)
+
+
+def readSetOfFilaments(micSet, filamentSet, filamentsFromMic):
+    """ Read the resulting filaments from EMAN2 helix-boxer.
+    Params:
+        micSet: the input set of micrographs where the filaments where picked.
+        filamentSet: The output object SetOfFilaments that will be populated
+            from the parsed coordinates in the box files.
+        filamentsFromMic: a function that return the filename of the filaments
+            file for the given micrograph
+    """
+    # Iterate over all the micrograph in the set and get the picked filaments
+    # for each of them
+    for mic in micSet:
+        readFilaments(mic, filamentsFromMic(mic), filamentSet)
+
+
+def readFilaments(mic, fileName, filamentSet):
+    """ Parse the filaments for a given micrograph.
+    Params:
+        mic: the micrograph where the filaments where picked.
+        fileName: the name of the box file containing the filament coordinates.
+        filamentSet: the output SetOfFilaments where to add parsed filaments.
+    """
+    f = open(fileName)
+    lines = f.readlines()
+    n = len(lines)
+    # Each endpoint of the filament is in a separte line, so for each
+    # filament we need to consider two lines
+    for i in range(n/2):
+        l1 = lines[2*i]
+        l2 = lines[2*i+1]
+        f = Filament(endpoints=[l1[0], l1[1], l2[0], l2[1]])
+        f.setMicrograph(mic)
+        filamentSet.append(f)
         
 
 
@@ -357,15 +392,15 @@ def convertBinaryFiles(imgSet, outputDir):
         """ Just create a link named .mrc to Eman understand 
         that it is a mrc binary stack.
         """
-        newFn = join(outputDir, replaceBaseExt(fn, 'mrcs'))
-        createLink(fn, newFn)
+        newFn = join(outputDir, pwutils.replaceBaseExt(fn, 'mrcs'))
+        pwutils.createLink(fn, newFn)
         return newFn
         
     def convertStack(fn):
         """ Convert from a format that is not read by Relion
         to an spider stack.
         """
-        newFn = join(outputDir, replaceBaseExt(fn, 'stk'))
+        newFn = join(outputDir, pwutils.replaceBaseExt(fn, 'stk'))
         ih.convertStack(fn, newFn)
         return newFn
         
@@ -389,5 +424,5 @@ def convertBinaryFiles(imgSet, outputDir):
 def iterParticlesByMic(partSet):
     """ Iterate the particles ordered by micrograph """
     for i, part in enumerate(partSet.iterItems(orderBy=['_micId', 'id'],
-                                                                 direction='ASC')):
+                                               direction='ASC')):
         yield i, part

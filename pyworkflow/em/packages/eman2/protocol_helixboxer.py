@@ -31,12 +31,11 @@ import os
 from pyworkflow.object import String
 from pyworkflow.utils.properties import Message
 import pyworkflow.utils as pwutils
-from pyworkflow.utils.path import join
 from pyworkflow.gui.dialog import askYesNo
 from pyworkflow.em.protocol import ProtParticlePicking
 
 import eman2
-from pyworkflow.em.packages.eman2.convert import loadJson
+from pyworkflow.em.packages.eman2.convert import readFilaments
 from convert import readSetOfCoordinates
 
 
@@ -48,46 +47,56 @@ class EmanProtHelixBoxer(ProtParticlePicking):
         ProtParticlePicking.__init__(self, **args)
         # The following attribute is only for testing
         self.importFolder = String(args.get('importFolder', None))
+        self.program = eman2.getEmanProgram("e2helixboxer.py")
     
-    #--------------------------- INSERT steps functions --------------------------------------------
+    #--------------------------- INSERT steps functions ------------------------
     def _insertAllSteps(self):
-        self.inputMics = self.inputMicrographs.get()
-        micList = [os.path.relpath(mic.getFileName(), self.workingDir.get()) for mic in self.inputMics]
-
-        self._params = {'inputMics': ' '.join(micList)}
         # Launch Boxing GUI
         self._insertFunctionStep('launchBoxingGUIStep', interactive=True)
 
-    #--------------------------- STEPS functions ---------------------------------------------------
+    #--------------------------- STEPS functions -------------------------------
     def launchBoxingGUIStep(self):
+        inputMics = self.getInputMicrographs()
+
         # Print the eman version, useful to report bugs
         self.runJob(eman2.getEmanProgram('e2version.py'), '')
-        # Program to execute and it arguments
-        program = eman2.getEmanProgram("e2helixboxer.py")
-        arguments = " --gui %(inputMics)s"
-        # Run the command with formatted parameters
-        self._log.info('Launching: ' + program + ' ' + arguments % self._params)
-        try:
-            self.runJob(program, arguments % self._params)
-        except Exception, ex:
-            print "Warning, error: ", ex
+
+        # Prepare the list of micrographs for the command line
+        micList = [self.getRelPath(mic.getFileName()) for mic in inputMics]
+        arguments = " --gui " + ' '.join(micList)
+
+        self.runHelixBoxer(arguments)
 
         # Open dialog to request confirmation to create output
         if askYesNo(Message.TITLE_SAVE_OUTPUT, Message.LABEL_SAVE_OUTPUT, None):
-            #self._leaveDir()# going back to project dir
-            # TODO: Parse helix boxer outputs and generate the SetOfFilaments for Scipion
-            for mic in self.getInputMicrographs():
-                micFn = os.path.relpath(mic.getFileName(), self.workingDir.get())
-                micCoordsFn = pwutils.replaceBaseExt(micFn, '.coords.txt')
-                arguments = '--helix-coords=extra/%s %s' % (micCoordsFn, micFn)
-                self.runJob(program, arguments)
+            self._createOutput(inputMics)
 
-        def _createOutput(self):
-            # TODO: Parse helix boxer outputs and generate the SetOfFilaments for Scipion
-            # e2helixboxer.py --helix-coords=microgname.txt ../000002_ProtImportMicrographs/extra/Feb22_20.11.33_aligned_mic_DW.mrc
-            pass
+    def _createOutput(self, inputMics):
+        self.info("Parsing .box files and creating the output SetOfFilaments.")
 
-    #--------------------------- INFO functions ---------------------------------------------------
+        filamentSet = self._createSetOfFilaments(inputMics)
+
+        for mic in self.getInputMicrographs():
+            micFn = self.getRelPath(mic.getFileName())
+            baseName = pwutils.removeBaseExt(micFn)
+            micCoordsFn = self._getExtraPath(baseName + '_coords.box')
+            micCoordsFnRel = self.getRelPath(micCoordsFn)
+            arguments = '--helix-coords=%s %s' % (micCoordsFnRel, micFn)
+            result = self.runHelixBoxer(arguments)
+            # If result=False it could means that there was not filaments
+            # picked for this micrograph, so we just ignore it.
+            # In the future we might implement a cleaner way to do this
+            if result:
+                readFilaments(mic, micCoordsFn, filamentSet)
+
+        # Define that the resulting SetOfFilaments as output and that is was
+        # produced from the input SetOfMicrographs
+        self._defineOutputs(outputFilaments=filamentSet)
+        self._defineSourceRelation(self.getInputMicrographsPointer(),
+                                   filamentSet)
+
+
+    #--------------------------- INFO functions --------------------------------
     def _validate(self):
         errors = []
         eman2.validateVersion(self, errors)
@@ -105,18 +114,30 @@ class EmanProtHelixBoxer(ProtParticlePicking):
             warnings.append('     in Xmipp particle picking GUI.')
         return warnings
     
-    #--------------------------- UTILS functions ---------------------------------------------------
-    def _runSteps(self, startIndex):
-        # Redefine run to change to workingDir path
-        # Change to protocol working directory
-        self._enterWorkingDir()
-        ProtParticlePicking._runSteps(self, startIndex)
-    
+    #--------------------------- UTILS functions -------------------------------
+
     def getFiles(self):
         filePaths = self.inputMicrographs.get().getFiles() | ProtParticlePicking.getFiles(self)
         return filePaths
 
     def readSetOfCoordinates(self, workingDir, coordSet):
         readSetOfCoordinates(workingDir, self.inputMics, coordSet)
-        
-        
+
+    def getRelPath(self, filename):
+        """ Get the relative micrograph filename from the protocol working dir.
+        """
+        return os.path.relpath(filename, self.getWorkingDir())
+
+    def runHelixBoxer(self, arguments):
+        """ Run e2helixboxer.py EMAN2 program, return True if succeed,
+        False otherwise.
+        """
+        try:
+            # Run the command with formatted parameters
+            self.runJob(self.program, arguments, cwd=self.getWorkingDir())
+            result = True
+        except Exception, ex:
+            result = False
+
+        return result
+
