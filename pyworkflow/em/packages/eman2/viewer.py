@@ -43,6 +43,7 @@ from pyworkflow.protocol.params import (LabelParam, NumericRangeParam,
 from protocol_boxing import EmanProtBoxing
 from protocol_initialmodel import EmanProtInitModel
 from protocol_refineasy import EmanProtRefine
+from protocol_helixboxer import EmanProtHelixBoxer
 
 LAST_ITER = 0
 ALL_ITERS = 1
@@ -75,7 +76,7 @@ class EmanViewer(XmippViewer):
     with the Xmipp program xmipp_showj
     """
     _environments = [DESKTOP_TKINTER]
-    _targets = [EmanProtBoxing, EmanProtInitModel]
+    _targets = [EmanProtBoxing, EmanProtInitModel, EmanProtHelixBoxer]
  
     def _visualize(self, obj, **args):
          
@@ -99,6 +100,10 @@ class EmanViewer(XmippViewer):
                                                       showj.RENDER: '_filename',
                                                       showj.OBJCMDS: objCommands},
                                              ))
+
+        elif isinstance(obj, EmanProtHelixBoxer):
+            fn = obj.outputFilaments.getFileName()
+            self._views.append(vw.DataView(fn))
 
 
 def showExtraFile(volumeSet, volId, suffix):
