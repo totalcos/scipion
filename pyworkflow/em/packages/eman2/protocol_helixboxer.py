@@ -33,6 +33,7 @@ from pyworkflow.utils.properties import Message
 import pyworkflow.utils as pwutils
 from pyworkflow.gui.dialog import askYesNo
 from pyworkflow.em.protocol import ProtParticlePicking
+from pyworkflow.protocol.params import IntParam
 
 import eman2
 from pyworkflow.em.packages.eman2.convert import readFilaments
@@ -43,12 +44,15 @@ class EmanProtHelixBoxer(ProtParticlePicking):
     """ Picks particles in a set of micrographs using eman2 boxer. """
     _label = 'helix boxer'
         
-    def __init__(self, **args):     
-        ProtParticlePicking.__init__(self, **args)
-        # The following attribute is only for testing
-        self.importFolder = String(args.get('importFolder', None))
+    def __init__(self, **kwargs):
+        ProtParticlePicking.__init__(self, **kwargs)
         self.program = eman2.getEmanProgram("e2helixboxer.py")
-    
+
+    def _defineParams(self, form):
+        ProtParticlePicking._defineParams(self, form)
+        form.addParam('boxSize', IntParam, default=100,
+                   label='Box size (px)')
+
     #--------------------------- INSERT steps functions ------------------------
     def _insertAllSteps(self):
         # Launch Boxing GUI
@@ -63,7 +67,8 @@ class EmanProtHelixBoxer(ProtParticlePicking):
 
         # Prepare the list of micrographs for the command line
         micList = [self.getRelPath(mic.getFileName()) for mic in inputMics]
-        arguments = " --gui " + ' '.join(micList)
+        arguments = "--helix-width %d" % self.boxSize
+        arguments += " --gui %s" % ' '.join(micList)
 
         self.runHelixBoxer(arguments)
 
@@ -75,6 +80,7 @@ class EmanProtHelixBoxer(ProtParticlePicking):
         self.info("Parsing .box files and creating the output SetOfFilaments.")
 
         filamentSet = self._createSetOfFilaments(inputMics)
+        filamentSet.setBoxSize(self.boxSize.get())
 
         for mic in self.getInputMicrographs():
             micFn = self.getRelPath(mic.getFileName())
