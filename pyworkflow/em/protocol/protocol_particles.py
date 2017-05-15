@@ -23,9 +23,6 @@
 # *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
-"""
-In this module are protocol base classes related to EM Particles
-"""
 
 from pyworkflow.protocol.params import PointerParam
 from pyworkflow.em.protocol import EMProtocol
@@ -46,8 +43,9 @@ class ProtProcessParticles(ProtParticles):
     def _defineParams(self, form):
         form.addSection(label=Message.LABEL_INPUT)
         
-        form.addParam('inputParticles', PointerParam, important=True,
-                      label=Message.LABEL_INPUT_PART, pointerClass='SetOfParticles')
+        form.addParam('inputParticles', PointerParam,
+                      pointerClass='SetOfParticles',
+                      label=Message.LABEL_INPUT_PART, important=True)
         # Hook that should be implemented in subclasses
         self._defineProcessParams(form)
         
@@ -68,12 +66,14 @@ class ProtProcessParticles(ProtParticles):
 
 
 class ProtFilterParticles(ProtProcessParticles):
-    """Base class for filters on particles of type ProtPreprocessParticles"""
+    """ Base class for filters on particles of type ProtPreprocessParticles.
+    """
     pass
 
 
 class ProtOperateParticles(ProtProcessParticles):
-    """Base class for operations on particles of type ProtPreprocessParticles"""
+    """ Base class for operations on particles of type ProtPreprocessParticles.
+    """
     def __init__(self, **args):
         ProtProcessParticles.__init__(self, **args)
 
@@ -94,11 +94,13 @@ class ProtParticlePicking(ProtParticles):
     def _defineParams(self, form):
 
         form.addSection(label='Input')
-        form.addParam('inputMicrographs', PointerParam, pointerClass='SetOfMicrographs',
+        form.addParam('inputMicrographs', PointerParam,
+                      pointerClass='SetOfMicrographs',
                       label=Message.LABEL_INPUT_MIC, important=True,
-                      help='Select the SetOfMicrographs to be used during picking.')
+                      help='Select the SetOfMicrographs to be used during '
+                           'picking.')
 
-    #--------------------------- INFO functions ----------------------------------------------------
+    #--------------------------- INFO functions --------------------------------
     def getSummary(self, coordSet):
         summary = []
         summary.append("Number of particles picked: %s" % coordSet.getSize())
@@ -106,8 +108,8 @@ class ProtParticlePicking(ProtParticles):
         return "\n".join(summary)
 
     def getMethods(self, output):
-        msg = 'User picked %d particles with a particle size of %s.' % (output.getSize(),
-                                                                        output.getBoxSize())
+        msg = 'User picked %d particles ' % output.getSize()
+        msg += 'with a particle size of %s.' % output.getBoxSize()
         return msg
 
     def _methods(self):
@@ -164,7 +166,8 @@ class ProtParticlePicking(ProtParticles):
     def _summary(self):
         summary = []
         if self.getInputMicrographs() is not None:
-            summary.append("Number of input micrographs: %d" % self.getInputMicrographs().getSize())
+            summary.append("Number of input micrographs: %d"
+                           % self.getInputMicrographs().getSize())
 
         if self.getOutputsSize() >= 1:
             for key, output in self.iterOutputAttributes(EMObject):
