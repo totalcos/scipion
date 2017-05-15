@@ -142,21 +142,6 @@ def readCoordinates(mic, fileName, coordsSet):
                 coordsSet.append(coord)
 
 
-def readSetOfFilaments(micSet, filamentSet, filamentsFromMic):
-    """ Read the resulting filaments from EMAN2 helix-boxer.
-    Params:
-        micSet: the input set of micrographs where the filaments where picked.
-        filamentSet: The output object SetOfFilaments that will be populated
-            from the parsed coordinates in the box files.
-        filamentsFromMic: a function that return the filename of the filaments
-            file for the given micrograph
-    """
-    # Iterate over all the micrograph in the set and get the picked filaments
-    # for each of them
-    for mic in micSet:
-        readFilaments(mic, filamentsFromMic(mic), filamentSet)
-
-
 def readFilaments(mic, fileName, filamentSet):
     """ Parse the filaments for a given micrograph.
     Params:
@@ -167,16 +152,21 @@ def readFilaments(mic, fileName, filamentSet):
     f = open(fileName)
     lines = f.readlines()
     n = len(lines)
-    # Each endpoint of the filament is in a separte line, so for each
+    # Compute half of box size to store the center of the coordinates
+    h = filamentSet.getBoxSize() / 2
+
+    def endp(v):
+        return int(v) + h
+    # Each endpoint of the filament is in a separate line, so for each
     # filament we need to consider two lines
     for i in range(n/2):
-        l1 = lines[2*i]
-        l2 = lines[2*i+1]
-        f = Filament(endpoints=[l1[0], l1[1], l2[0], l2[1]])
+        l1 = lines[2*i].split()
+        l2 = lines[2*i+1].split()
+        f = Filament()
+        f.setEndpoints([endp(l1[0]), endp(l1[1]), endp(l2[0]), endp(l2[1])])
         f.setMicrograph(mic)
         filamentSet.append(f)
         
-
 
 def writeSetOfCoordinates():
     pass
