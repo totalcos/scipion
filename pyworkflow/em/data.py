@@ -1927,6 +1927,16 @@ class SetOfFilaments(EMSet):
     def __init__(self, **kwargs):
         EMSet.__init__(self, **kwargs)
         self._micrographsPointer = Pointer()
+        self._boxSize = Integer()
+
+    def getBoxSize(self):
+        """ Return the box size of the particles.
+        """
+        return self._boxSize.get()
+
+    def setBoxSize(self, boxSize):
+        """ Set the box size of the particles. """
+        self._boxSize.set(boxSize)
 
     def iterMicrographs(self):
         """ Iterate over the micrographs set associated with this
