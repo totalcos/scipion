@@ -28,7 +28,7 @@
 
 import os
 
-from pyworkflow.object import String
+from pyworkflow.object import String, Pointer
 from pyworkflow.utils.properties import Message
 import pyworkflow.utils as pwutils
 from pyworkflow.gui.dialog import askYesNo
@@ -36,6 +36,7 @@ from pyworkflow.em.protocol import ProtExtractParticles
 import pyworkflow.protocol.params as params
 from pyworkflow.em.protocol import EMProtocol
 from pyworkflow.em.data import Coordinate, Filament, SetOfCoordinates, SetOfFilaments
+from pyworkflow.em.protocol.protocol_particles import ProtParticlePicking
 
 import eman2
 from pyworkflow.em.packages.eman2.convert import readFilaments
@@ -43,7 +44,7 @@ from convert import readSetOfCoordinates
 import math
 
 
-class ProtSegmentHelices(EMProtocol):
+class ProtSegmentHelices(ProtParticlePicking):
     """ Segments set of filaments into set of coordinates """
     _label = 'segment filaments'
 
@@ -63,13 +64,16 @@ class ProtSegmentHelices(EMProtocol):
                       help='Select the SetOfFilaments from which you want to extract coordinates ')
 
         form.addParam('overlap', params.IntParam,
-                      label='overlap',
+                      label='Overlap (px)',                                  ##############change px to A!
                       validators=[params.Positive],
                       help='Overlap of two adjacent particles within a filament.'
                            'This defines how finely you want to segment the filament.')
 
-        form.addParam('boxSize', params.IntParam, default=inputFilaments.getBoxSize()
-                     label='Particle box size (px)',
+        #inputFilaments = self.inputFilaments.get()
+
+        form.addParam('boxSize', params.IntParam,
+                      #default=self.inputFilaments.get().getBoxSize(),      how to add the boxsize used for picking as default?
+                      label='Particle box size (px)',
                       validators=[params.Positive],
                       help='Size of the boxed particles (in pixels). '
                      )
@@ -79,9 +83,9 @@ class ProtSegmentHelices(EMProtocol):
     def _insertAllSteps(self):
         #self._insertFunctionStep('convertInputStep')
 
-        #self.insertFunctionStep('segmentFilamentsStep')
+        #self._insertFunctionStep('segmentFilamentsStep')
 
-        self.insertFunctionStep('createOutputStep')
+        self._insertFunctionStep('createOutputStep')
 
 
     #--------------- STEPS functions -----------------------
@@ -99,26 +103,43 @@ class ProtSegmentHelices(EMProtocol):
         mics = inputFilaments.getMicrographs()
         outputCoords = self._createSetOfCoordinates(mics)
 
+        micDic = {}
+        for mic in mics.iterItems():
+            micDic[mic.getObjId()] = mic.clone()
+
         for filament in inputFilaments.iterFilaments():
-            startX = float(filament.getEndpoints()[0])  #define some params to calculate coordinates
+            startX = float(filament.getEndpoints()[0])
             startY = float(filament.getEndpoints()[1])
             endX = float(filament.getEndpoints()[2])
             endY = float(filament.getEndpoints()[3])
-            filLength = math.sqrt((startX-endX)**2 + (startY-endY)**2) ######make a function 'filament.getLength'
+            length = filament.getLength()
             moveby = boxsize - overlap
-            angle = math.tan(abs(startY-endY)/abs(startX-endX))
+            angle = filament.getAngle()
             moveX = math.cos(angle)*moveby
             moveY = math.sin(angle)*moveby
-            amountSegments = filLength/
-            newCoord=Coordinate(x=startX, y=startY)####HoToDefineACoordinate? --> Maybe with a function setFilCoord(x,y,filament)
-            outputCoords.append(newCoord) ######HowToAddToSetOfCoordinates?
+            amountSegments = int(length/moveby)
+            mic = micDic[filament.getMicId()]
+            print filament.getMicId(), micdic[filament.getMicId()]
+            initialCoord=self.makeFilCoord(startX, startY, mic)
+            initialCoord.filamentId = filament.getObjId() ##mark
+            outputCoords.append(initialCoord)
+
             for counter in range(amountSegments):
-                x+=
-                y=+
-                outputCoords.append()
-            outputCoords.append(endX, endY)
+                startX += moveX
+                startY += moveY #newCoord.shiftY(moveY) doesn't work - maybe because of float vs int....
+                newCoord = self.makeFilCoord(int(startX), int(startY), mic)
+                newCoord.filamentId = filament.getObjId() ##mark
+                outputCoords.append(newCoord)
 
+            lastCoord = (self.makeFilCoord(endX, endY, mic))
+            lastCoord.filamentId = filament.getObjId()##mark
+            outputCoords.append(lastCoord)
 
+        outputCoords.filamentsPointer = Pointer()
+        outputCoords.filamentsPointer.set(inputFilaments) ##is this correct?
+        outputCoords.setBoxSize(boxsize)
+        self._defineOutputs(outputCoordinates=outputCoords)
+        self._defineSourceRelation(self.inputFilaments, outputCoords)
 
     #--------------- INFO functions -------------------------
 
@@ -135,3 +156,9 @@ class ProtSegmentHelices(EMProtocol):
         return []
 
     #--------------- UTILS functions -------------------------
+
+    def makeFilCoord(self,x,y,mic):
+        newCoord = Coordinate()
+        newCoord.setPosition(x,y)
+        newCoord.setMicrograph(mic)
+        return newCoord
