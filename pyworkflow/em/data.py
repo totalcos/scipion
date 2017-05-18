@@ -38,6 +38,7 @@ import pyworkflow.utils as pwutils
 from constants import *
 from convert import ImageHandler
 import numpy as np
+import math
 # import xmipp
 
 
@@ -1920,6 +1921,16 @@ class Filament(EMObject):
     def getMicName(self):
         return self._micName.get()
 
+    def getLength(self):
+        startX, startY = float(self.getEndpoints()[0]), float(self.getEndpoints()[1])
+        endX, endY = float(self.getEndpoints()[2]), float(self.getEndpoints()[3])
+        return math.sqrt((startX-endX)**2 + (startY-endY)**2)
+
+    def getAngle(self):
+        """in plane angle in Radian"""
+        startX, startY = self.getEndpoints()[0], self.getEndpoints()[1]
+        endX, endY = self.getEndpoints()[2], self.getEndpoints()[3]
+        return math.atan2(endY-startY,endX-startX)
 
 class SetOfFilaments(EMSet):
     ITEM_TYPE = Filament
