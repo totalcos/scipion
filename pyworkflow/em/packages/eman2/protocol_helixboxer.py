@@ -1,9 +1,9 @@
 # **************************************************************************
 # *
-# * Authors:        Olivia [1]....
+# * Authors:        Olivia Pfeil-Gardiner (zolivia@zedat.fu-berlin.de) [1]
 #                   J.M. De la Rosa Trevin (delarosatrevin@scilifelab.se) [2]
 # *
-# *  [1] OPIC....
+# *  [1] Oxford Particle Imaging Centre, Division of Structural Biology, University of Oxford
 # *  [2] SciLifeLab, Stockholm University
 # *
 # * This program is free software; you can redistribute it and/or modify

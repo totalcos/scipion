@@ -1922,15 +1922,16 @@ class Filament(EMObject):
         return self._micName.get()
 
     def getLength(self):
+        '''length of the filament in pixels'''
         startX, startY = float(self.getEndpoints()[0]), float(self.getEndpoints()[1])
         endX, endY = float(self.getEndpoints()[2]), float(self.getEndpoints()[3])
         return math.sqrt((startX-endX)**2 + (startY-endY)**2)
 
     def getAngle(self):
-        """in plane angle in Radian"""
+        """in plane angle in radian"""
         startX, startY = self.getEndpoints()[0], self.getEndpoints()[1]
         endX, endY = self.getEndpoints()[2], self.getEndpoints()[3]
-        return math.atan2(endY-startY,endX-startX)
+        return math.atan2(endY-startY, endX-startX)
 
 class SetOfFilaments(EMSet):
     ITEM_TYPE = Filament

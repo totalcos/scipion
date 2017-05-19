@@ -1,9 +1,9 @@
 # **************************************************************************
 # *
-# * Authors:        Olivia [1]....
+# * Authors:        Olivia Pfeil-Gardiner (zolivia@zedat.fu-berlin.de) [1]
 #                   J.M. De la Rosa Trevin (delarosatrevin@scilifelab.se) [2]
 # *
-# *  [1] OPIC....
+# *  [1] Oxford Particle Imaging Centre, Division of Structural Biology, University of Oxford
 # *  [2] SciLifeLab, Stockholm University
 # *
 # * This program is free software; you can redistribute it and/or modify
@@ -28,11 +28,9 @@
 
 import os
 
-from pyworkflow.object import String, Pointer
+from pyworkflow.object import Pointer
 from pyworkflow.utils.properties import Message
 import pyworkflow.utils as pwutils
-from pyworkflow.gui.dialog import askYesNo
-from pyworkflow.em.protocol import ProtExtractParticles
 import pyworkflow.protocol.params as params
 from pyworkflow.em.protocol import EMProtocol
 from pyworkflow.em.data import Coordinate, Filament, SetOfCoordinates, SetOfFilaments
@@ -46,11 +44,10 @@ import math
 
 class ProtSegmentHelices(ProtParticlePicking):
     """ Segments set of filaments into set of coordinates """
-    _label = 'segment filaments'
+    _label = 'segment helices'
 
     def __init__(self, **kwargs):
-        EMProtocol.__init__(self, **kwargs)
-        #what else should go here?
+        ProtParticlePicking.__init__(self, **kwargs)
 
  #--------------- DEFINE param functions ---------------
 
@@ -59,42 +56,29 @@ class ProtSegmentHelices(ProtParticlePicking):
 
         form.addParam('inputFilaments', params.PointerParam,
                       pointerClass='SetOfFilaments',
-                      #important=True,
+                      important=True,
                       label="Input filaments",
-                      help='Select the SetOfFilaments from which you want to extract coordinates ')
-
-        form.addParam('overlap', params.IntParam,
-                      label='Overlap (px)',                                  ##############change px to A!
-                      validators=[params.Positive],
-                      help='Overlap of two adjacent particles within a filament.'
-                           'This defines how finely you want to segment the filament.')
-
-        #inputFilaments = self.inputFilaments.get()
+                      help='Select the SetOfFilaments from which you would like to extract coordinates ')
 
         form.addParam('boxSize', params.IntParam,
                       #default=self.inputFilaments.get().getBoxSize(),      how to add the boxsize used for picking as default?
                       label='Particle box size (px)',
                       validators=[params.Positive],
-                      help='Size of the boxed particles (in pixels). '
-                     )
+                      help='Size of the boxed particles (in pixels).')
+
+        form.addParam('overlap', params.IntParam,
+                      label='Overlap (px)',                ##############change px to A?!
+                      validators=[params.Positive],        ###a nice default would be 90% of default boxsize (cf. relion wiki)
+                      help='Overlap of two adjacent particles within a filament (in pixels).'
+                           '(Measured along the filament line.)'
+                           'This defines how finely you want to segment the filament.')
 
     #--------------- INSERT steps functions ----------------
 
     def _insertAllSteps(self):
-        #self._insertFunctionStep('convertInputStep')
-
-        #self._insertFunctionStep('segmentFilamentsStep')
-
         self._insertFunctionStep('createOutputStep')
 
-
     #--------------- STEPS functions -----------------------
-
-    #def convertInputStep(self):
-    #    pass
-
-    #def segmentFilamentsStep(self, params):
-        #inputFilaments = self.inputFilaments.get()
 
     def createOutputStep(self):
         inputFilaments = self.inputFilaments.get()
@@ -103,23 +87,22 @@ class ProtSegmentHelices(ProtParticlePicking):
         mics = inputFilaments.getMicrographs()
         outputCoords = self._createSetOfCoordinates(mics)
 
-        micDic = {}
+        micDict = {}
         for mic in mics.iterItems():
-            micDic[mic.getObjId()] = mic.clone()
+            micDict[mic.getObjId()] = mic.clone()
 
         for filament in inputFilaments.iterFilaments():
-            startX = float(filament.getEndpoints()[0])
-            startY = float(filament.getEndpoints()[1])
-            endX = float(filament.getEndpoints()[2])
-            endY = float(filament.getEndpoints()[3])
+            startX = filament.getEndpoints()[0]
+            startY = filament.getEndpoints()[1]
+            endX = filament.getEndpoints()[2]
+            endY = filament.getEndpoints()[3]
             length = filament.getLength()
             moveby = boxsize - overlap
             angle = filament.getAngle()
             moveX = math.cos(angle)*moveby
             moveY = math.sin(angle)*moveby
             amountSegments = int(length/moveby)
-            mic = micDic[filament.getMicId()]
-            print filament.getMicId(), micdic[filament.getMicId()]
+            mic = micDict[filament.getMicId()]
             initialCoord=self.makeFilCoord(startX, startY, mic)
             initialCoord.filamentId = filament.getObjId() ##mark
             outputCoords.append(initialCoord)
@@ -132,7 +115,7 @@ class ProtSegmentHelices(ProtParticlePicking):
                 outputCoords.append(newCoord)
 
             lastCoord = (self.makeFilCoord(endX, endY, mic))
-            lastCoord.filamentId = filament.getObjId()##mark
+            lastCoord.filamentId = filament.getObjId() ##mark
             outputCoords.append(lastCoord)
 
         outputCoords.filamentsPointer = Pointer()
