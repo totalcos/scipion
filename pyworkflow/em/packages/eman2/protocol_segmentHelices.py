@@ -104,22 +104,22 @@ class ProtSegmentHelices(ProtParticlePicking):
             amountSegments = int(length/moveby)
             mic = micDict[filament.getMicId()]
             initialCoord=self.makeFilCoord(startX, startY, mic)
-            initialCoord.filamentId = filament.getObjId() ##mark
+            initialCoord.filamentId = Integer(filament.getObjId())
             outputCoords.append(initialCoord)
 
             for counter in range(amountSegments):
                 startX += moveX
-                startY += moveY #newCoord.shiftY(moveY) doesn't work - maybe because of float vs int....
+                startY += moveY
                 newCoord = self.makeFilCoord(int(startX), int(startY), mic)
-                newCoord.filamentId = filament.getObjId() ##mark
+                newCoord.filamentId = Integer(filament.getObjId())
                 outputCoords.append(newCoord)
 
             lastCoord = (self.makeFilCoord(endX, endY, mic))
-            lastCoord.filamentId = filament.getObjId() ##mark
+            lastCoord.filamentId = Integer(filament.getObjId())
             outputCoords.append(lastCoord)
 
         outputCoords.filamentsPointer = Pointer()
-        outputCoords.filamentsPointer.set(inputFilaments) ##is this correct?
+        outputCoords.filamentsPointer.set(inputFilaments)
         outputCoords.setBoxSize(boxsize)
         self._defineOutputs(outputCoordinates=outputCoords)
         self._defineSourceRelation(self.inputFilaments, outputCoords)
