@@ -25,7 +25,6 @@
 # *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
-
 import os
 
 from pyworkflow.object import Pointer
@@ -66,10 +65,10 @@ class ProtSegmentHelices(ProtParticlePicking):
                       validators=[params.Positive],
                       help='Size of the boxed particles (in pixels).')
 
-        form.addParam('overlap', params.IntParam,
-                      label='Overlap (px)',                ##############change px to A?!
+        form.addParam('overlap', params.FloatParam,
+                      label='Overlap (angstrom)',
                       validators=[params.Positive],        ###a nice default would be 90% of default boxsize (cf. relion wiki)
-                      help='Overlap of two adjacent particles within a filament (in pixels).'
+                      help='Overlap of two adjacent particles within a filament (in angstrom).'
                            '(Measured along the filament line.)'
                            'This defines how finely you want to segment the filament.')
 
@@ -82,9 +81,10 @@ class ProtSegmentHelices(ProtParticlePicking):
 
     def createOutputStep(self):
         inputFilaments = self.inputFilaments.get()
-        overlap = self.overlap.get()
-        boxsize = self.boxSize.get()
         mics = inputFilaments.getMicrographs()
+        pixSize = mics.getScannedPixelSize()
+        overlap = self.overlap.get()/pixSize #transforms the overlap from A to pixels
+        boxsize = self.boxSize.get()
         outputCoords = self._createSetOfCoordinates(mics)
 
         micDict = {}
