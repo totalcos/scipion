@@ -32,7 +32,7 @@ from pyworkflow.utils.properties import Message
 import pyworkflow.utils as pwutils
 import pyworkflow.protocol.params as params
 from pyworkflow.em.protocol import EMProtocol
-from pyworkflow.em.data import Coordinate, Filament, SetOfCoordinates, SetOfFilaments
+from pyworkflow.em.data import Coordinate, Filament, SetOfCoordinates, SetOfFilaments, Integer
 from pyworkflow.em.protocol.protocol_particles import ProtParticlePicking
 
 import eman2
