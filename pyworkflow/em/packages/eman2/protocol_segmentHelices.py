@@ -34,7 +34,6 @@ from pyworkflow.em.data import Coordinate
 from pyworkflow.em.protocol.protocol_particles import ProtParticlePicking
 
 
-
 class ProtSegmentHelices(ProtParticlePicking):
     """ Segments set of filaments into set of coordinates """
     _label = 'segment helices'
