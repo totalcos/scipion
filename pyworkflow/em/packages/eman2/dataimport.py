@@ -28,7 +28,7 @@ from os.path import  exists, join, dirname
 
 from pyworkflow.utils.path import getExt
 from pyworkflow.em.data import Coordinate
-from pyworkflow.em.packages.eman2.convert import loadJson
+from pyworkflow.em.packages.eman2.convert import loadJson, readFilaments
 from pyworkflow.em.metadata import MetaData, MDL_XCOOR, MDL_YCOOR, MDL_PICKING_PARTICLE_SIZE
 
 
@@ -91,4 +91,7 @@ class EmanImport():
                     return int(jsonDict["box_size"])
                 
         return None
-                
+
+    def importFilaments(self, mic, filename, filamentSet):
+        readFilaments(mic, filename, filamentSet)
+
