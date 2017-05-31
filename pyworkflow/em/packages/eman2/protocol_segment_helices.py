@@ -103,8 +103,10 @@ class ProtSegmentHelices(ProtParticlePicking):
             for counter in range(amountSegments):
                 # We can re-use the same Coordinate object but updating
                 # the x and y values and clean
-                coord.shiftX(moveX)
-                coord.shiftY(moveY)
+                startX += moveX
+                startY += moveY
+                coord.setX(round(startX))
+                coord.setY(round(startY))
                 coord.setObjId(None) # Reset id to insert as a new coordinate
                 outputCoords.append(coord)
 
