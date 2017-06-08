@@ -36,6 +36,7 @@ from pyworkflow.protocol.params import (BooleanParam, PointerParam, FloatParam,
                                         LabelParam, PathParam)
 from pyworkflow.protocol.constants import LEVEL_ADVANCED
 from pyworkflow.utils.path import cleanPath
+import pyworkflow.protocol.params as params
 
 import pyworkflow.em as em
 import pyworkflow.em.metadata as md
@@ -426,15 +427,15 @@ class ProtRelionBase(EMProtocol):
                       label='Apply helical processing?',
                       help='If set to *Yes* relion helical processing functions will be applied.')
 
-            form.addParam('tubeDiameterA', IntParam, label='Helix diameter (A)',
-                      condition='doHelix',
+            form.addParam('tubeDiameterA', FloatParam, label='Helix diameter (A)',
+                      condition='doHelix', validators=[params.Positive],
                       help='Outer diameter (in Angstroms) of helical tubes. '
                            'This value should be slightly larger than the actual '
                            'width of the tubes. You may want to copy the value '
                            'from previous particle extraction job. If negative '
                            'value is provided, this option is disabled and ordinary '
                            'circular masks will be applied.')
-            if not self.IS_3D:
+            if self.IS_2D:
                 form.addParam('doBimodalPsi', BooleanParam, label='Do bimodal angular searches?',
                       default=True, condition='doHelix and doImageAlignment',
                       help='Do bimodal search for psi angles? Set to Yes '
@@ -446,7 +447,7 @@ class ProtRelionBase(EMProtocol):
                            'searches will be performed.'
                            )
 
-                form.addParam('angleSearchRange', IntParam, label='In plane angular search range (deg)',
+                form.addParam('angleSearchRange', FloatParam, label='In plane angular search range (deg)',
                       condition='doHelix and doImageAlignment',
                       #devide by three????????????????
                       help='Local angular searches will be performed within +/- the given '
@@ -458,8 +459,8 @@ class ProtRelionBase(EMProtocol):
                            'previous alignment.')
 
             else:
-                form.addParam('innerDiameterA', IntParam, label='Inner Diameter of Helix (A)',
-                              default=-1, condition='doHelix',
+                form.addParam('innerDiameterA', FloatParam, label='Inner Diameter of Helix (A)',
+                              default=-1, condition='doHelix', validators=[params.Positive],
                               help='Inner diameter of the reconstructed helix. '
                                    'Set to negative value if the helix is not hollow in the centre.')
 
@@ -470,15 +471,16 @@ class ProtRelionBase(EMProtocol):
                                          'rise should be within the respective range.')
 
                 line.addParam('initialTwist', FloatParam, label='Twist (deg)')
-                line.addParam('initialRise', FloatParam, label='Rise (A)')
+                line.addParam('initialRise', FloatParam, label='Rise (A)', validators=[params.Positive])
                 #ToDo solve problem with line being too long
 
-                form.addParam('doLocalSymSearches', BooleanParam, label='Do local searches of symmetry?',
+                group = form.addGroup('local symmetry searches')
+                group.addParam('doLocalSymSearches', BooleanParam, label='Do local searches of symmetry?',
                               condition='doHelix',
                               help='If set to Yes, then perform local searches of helical twist and rise '
                                    'within given ranges.')
 
-                line1 = form.addLine('Twist search (deg)', condition='doHelix and doLocalSymSearches',
+                line1 = group.addLine('Twist search (deg)', condition='doHelix and doLocalSymSearches',
                              help='Minimum, maximum and initial step for helical twist search. '
                                   'Set helical twist (in degrees) to positive value if it is '
                                   'a right-handed helix. Generally it is not necessary for the '
@@ -493,7 +495,8 @@ class ProtRelionBase(EMProtocol):
                 line1.addParam('maxTwist', FloatParam, label='Max')
                 line1.addParam('stepTwist', FloatParam, label='Step')
 
-                line2 = form.addLine('Rise search (A)', condition='doHelix and doLocalSymSearches',
+                line2 = group.addLine('Rise search (A)', condition='doHelix and doLocalSymSearches',
+                                     validators=[params.Positive],
                              help='Minimum, maximum and initial step for helical rise search. '
                                   'Helical rise is a positive value in Angstroms. Generally '
                                   'it is not necessary for the user to provide an initial step '
@@ -509,7 +512,7 @@ class ProtRelionBase(EMProtocol):
 
                 #zlength will have to be transformed from % to percentage for command
                 form.addParam('zLength', IntParam, label='Central Z length (%)',
-                              condition='doHelix',
+                              condition='doHelix', validators=[params.Positive, params.PercentValidator],
                               help='Reconstructed helix suffers from inaccuracies of orientation searches. '
                                    'The central part of the box contains more reliable information compared '
                                    'to the top and bottom parts along Z axis, where Fourier artefacts are '
