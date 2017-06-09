@@ -511,8 +511,11 @@ class ProtRelionBase(EMProtocol):
                 line2.addParam('stepRise', FloatParam, label='Step')
 
                 #zlength will have to be transformed from % to percentage for command
-                form.addParam('zLength', IntParam, label='Central Z length (%)',
-                              condition='doHelix', validators=[params.Positive, params.PercentValidator],
+                form.addParam('zLength', FloatParam, label='Central Z length (%)',
+                              condition='doHelix',
+                              validators=[params.Positive, params.Range(0., 100., error='Percentage '
+                                                                                        'should be between'
+                                                                                        '0 and 100')],
                               help='Reconstructed helix suffers from inaccuracies of orientation searches. '
                                    'The central part of the box contains more reliable information compared '
                                    'to the top and bottom parts along Z axis, where Fourier artefacts are '
@@ -817,7 +820,10 @@ class ProtRelionBase(EMProtocol):
                 
             if self.solventMask.hasValue():
                 args['--solvent_mask2'] = self.solventMask.get().getFileName() #FIXME: CHANGE BY LOCATION, convert if necessary
-    
+
+    def _setHelixArgs(self):
+        pass
+
     #--------------------------- STEPS functions --------------------------------------------       
     def convertInputStep(self, particlesId, copyAlignment):
         """ Create the input file in STAR format as expected by Relion.
