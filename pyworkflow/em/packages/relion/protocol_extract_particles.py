@@ -33,6 +33,7 @@ import pyworkflow.em as em
 
 from convert import writeSetOfCoordinates, writeSetOfMicrographs, rowToParticle
 from protocol_base import ProtRelionBase
+from pyworkflow.object import Pointer, Integer
 
 
 # Rejection method constants
@@ -308,8 +309,19 @@ class ProtRelionExtractParticles(em.ProtExtractParticles, ProtRelionBase):
         lastMicName = None
         count = 0 # Counter for the particles of a given micrograph
 
+#ooooooooooooooooooooooooooooooooo making a fildict, which maps the angle to the fil id
+        filset = inputCoords.filamentsPointer.get()
+        fildict = {}
+        for fil in filset.iterItems():
+            fildict[fil.getObjId()] = fil.getAngle()
+
         for coord in inputCoords.iterItems(orderBy='_micId'):
             micName = coordMics[coord.getMicId()].getMicName()
+#ooooooooooooooooooooooooooo an example of getting the angle for a corrdinate to use it
+            filament = int(coord.filamentId)
+#ooooooooooooooooooooooooooooo testing if it worked
+            print 'xxxxx fil id', filament
+            print fildict[filament]
             
             # If Micrograph Source is "other" and extract from a subset
             # of micrographs, micName key should be checked if it exists.
