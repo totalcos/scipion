@@ -631,7 +631,7 @@ class ProtRelionBase(EMProtocol):
                                   'provided.')
                 line1.addParam('minTwist', FloatParam, label='Min')
                 line1.addParam('maxTwist', FloatParam, label='Max')
-                line1.addParam('stepTwist', FloatParam, label='Step')
+                line1.addParam('stepTwist', FloatParam, label='Step') #maybe default should be 0?
 
                 line2 = group.addLine('Rise search (A)', condition='doHelix and doLocalSymSearches',
                                      validators=[params.Positive],
@@ -646,7 +646,7 @@ class ProtRelionBase(EMProtocol):
                                   'converge if wrong helical and point group symmetry are provided.')
                 line2.addParam('minRise', FloatParam, label='Min')
                 line2.addParam('maxRise', FloatParam, label='Max')
-                line2.addParam('stepRise', FloatParam, label='Step')
+                line2.addParam('stepRise', FloatParam, label='Step')  #maybe default should be 0?
 
                 #zlength will have to be transformed from % to percentage for command
                 form.addParam('zLength', FloatParam, label='Central Z length (%)',
@@ -664,10 +664,9 @@ class ProtRelionBase(EMProtocol):
                                    'around 30% are commonly used.')
 
                 line3 = form.addLine('Angular search range (deg)',
-                                     condition='doHelix and ((IS_CLASSIFY and IS_3D and doImageAlignment '
+                                     condition='doHelix and ((IS_CLASSIFY and doImageAlignment '
                                                'and not localAngularSearch) or '
-                                               '(not IS_3D and IS_CLASSIFY and doImageAlignment) or '
-                                               '(IS_3D and not IS_CLASSIFY))',
+                                               'not IS_CLASSIFY)',
                                      help='Local angular searches will be performed within +/- the given '
                                           'amount (in degrees) from the optimal orientation in the previous '
                                           'iteration. A Gaussian prior (also see previous option) will be '
@@ -686,14 +685,13 @@ class ProtRelionBase(EMProtocol):
                                           'if you choose to perform local angular searches or not to perform '
                                           'image alignment on "Sampling" tab.')
                 line3.addParam('rangeTilt', FloatParam, label='out of plane (tilt)')
-                line3.addParam('rangePsi', FloatParam, label='in plane')
+                line3.addParam('rangePsi', FloatParam, label='in plane (psi)')
                 #Todo Fix problem with line too long.
 
                 form.addParam('rangeLocalAveraging', FloatParam, label='Range factor of local averaging',
-                              condition='doHelix and ((IS_CLASSIFY and IS_3D and doImageAlignment '
-                                        'and not localAngularSearch) or '
-                                        '(not IS_3D and IS_CLASSIFY and doImageAlignment) or '
-                                        '(IS_3D and not IS_CLASSIFY))',
+                              condition='doHelix and ((IS_CLASSIFY and doImageAlignment '
+                                               'and not localAngularSearch) or '
+                                               'not IS_CLASSIFY)',
                               help='Local averaging of orientations and translations will be performed within '
                                    'a range of +/- this value * the box size. Polarities are also set to be '
                                    'the same for segments coming from the same tube during local refinement. '
@@ -926,9 +924,43 @@ class ProtRelionBase(EMProtocol):
             if self.solventMask.hasValue():
                 args['--solvent_mask2'] = self.solventMask.get().getFileName() #FIXME: CHANGE BY LOCATION, convert if necessary
 
-    def _setHelixArgs(self):
-        pass
+    def _setHelixArgs(self, args):
 
+        if self.doHelix:
+            #args['--helix'] = ''
+            args['--helical_outer_diameter'] = self.tubeDiameterA.get()
+
+            if self.doBimodalPsi:
+                args['--bimodal_psi'] = ''
+
+            if self.IS_2D and self.doImageAlignment:
+                args['--sigma_psi'] = self.angleSearchRange.get()/3
+
+            if self.IS_3D:
+                if self.innerDiameterA > 0:
+                    args['--helical_inner_diameter'] = self.innerDiameterA.get()
+                    args['--helix'] = ''
+
+                args['--helical_twist_initial'] = self.initialTwist.get()
+                args['--helical_rise_initial'] = self.initialRise.get()
+
+                if self.doLocalSymSearches:
+                    args['--helical_symmetry_search'] = ''
+                    args['--helical_twist_min'] = self.minTwist.get()
+                    args['--helical_twist_max'] = self.maxTwist.get()
+                    if stepTwist > 0:
+                        args['--helical_twist_inistep'] = self.stepTwist.get()
+                    args['--helical_rise_min'] = self.minRise.get()
+                    args['--helical_rise_max'] = self.maxRise.get()
+                    if stepRise > 0:
+                        args['--helical_rise_inistep'] = self.stepRise.get()
+
+                args['--helical_z_percentage'] = self.zLength.get()/100
+
+                if self.doImageAlignment and not self.localAngularSearch or not IS_CLASSIFY:
+                    args['--sigma_tilt'] = self.rangeTilt.get()/3
+                    args['--sigma_psi'] = self.rangePsi.get()/3
+                    args['--helical_sigma_distance'] = self.rangeLocalAveraging.get()/3
 
     #--------------------------- STEPS functions -------------------------------
     
@@ -1096,6 +1128,7 @@ class ProtRelionBase(EMProtocol):
                      '--angpix': self._getInputParticles().getSamplingRate(),
                      })
         self._setCTFArgs(args)
+        #self._setHelixArgs(args)
     
         if self.maskZero == MASK_FILL_ZERO:
             args['--zero_mask'] = ''
@@ -1117,6 +1150,8 @@ class ProtRelionBase(EMProtocol):
             args['--memory_per_thread'] = self.memoryPreThreads.get()
     
         self._setBasicArgs(args)
+
+        self._setHelixArgs(args)
 
     def _setContinueArgs(self, args):
         continueRun = self.continueRun.get()
