@@ -30,9 +30,10 @@ import pyworkflow.utils as pwutils
 from pyworkflow.protocol.constants import STATUS_FINISHED
 import pyworkflow.protocol.params as params
 import pyworkflow.em as em
+import pyworkflow.em.metadata as md
 
-from convert import writeSetOfCoordinates, writeSetOfMicrographs, rowToParticle, \
-    isVersion2
+from convert import (writeSetOfCoordinates, writeSetOfMicrographs,
+                     isVersion2, rowToAlignment)
 from protocol_base import ProtRelionBase
 from pyworkflow.object import Pointer, Integer
 
@@ -314,20 +315,23 @@ class ProtRelionExtractParticles(em.ProtExtractParticles, ProtRelionBase):
         lastMicName = None
         count = 0 # Counter for the particles of a given micrograph
 
-#ooooooooooooooooooooooooooooooooo making a fildict, which maps the angle to the fil id
-        filset = inputCoords.filamentsPointer.get()
-        fildict = {}
-        for fil in filset.iterItems():
-            fildict[fil.getObjId()] = fil.getAngle()
+        hasFilaments = (hasattr(inputCoords, 'filamentsPointer') and
+                        inputCoords.filamentsPointer.get() is not None)
 
-        for coord in inputCoords.iterItems(orderBy='_micId'):
+
+        if hasFilaments:
+            filset = inputCoords.filamentsPointer.get()
+            # Use a row to store the alignment in case of coordinates came
+            # from filaments
+            alignRow = md.Row()
+            # Keep track of last filament id,
+            # so when change, we get the new angle
+            lastFilId = None
+            partSet.setAlignment2D() # use psi angles from filaments
+
+        for coord in inputCoords.iterItems(orderBy=['_micId', 'filamentId']):
             micName = coordMics[coord.getMicId()].getMicName()
-#ooooooooooooooooooooooooooo an example of getting the angle for a corrdinate to use it
-            filament = int(coord.filamentId)
-#ooooooooooooooooooooooooooooo testing if it worked
-            print 'xxxxx fil id', filament
-            print fildict[filament]
-            
+
             # If Micrograph Source is "other" and extract from a subset
             # of micrographs, micName key should be checked if it exists.
             if micName in micDict.keys():
@@ -336,7 +340,7 @@ class ProtRelionExtractParticles(em.ProtExtractParticles, ProtRelionBase):
                     stackFile, ctfModel = micDict[micName]
                     count = 1
                     lastMicName = micName
-    
+
                 p = em.Particle()
                 p.setLocation(count, stackFile)
                 if hasCTF:
@@ -348,7 +352,20 @@ class ProtRelionExtractParticles(em.ProtExtractParticles, ProtRelionBase):
     
                 if doScale:
                     p.scaleCoordinate(scaleFactor)
-    
+
+                if hasFilaments:
+                    filId = coord.filamentId.get()
+
+                    # Updated psi angle and Scipion transform for the new
+                    # filament
+                    if filId != lastFilId:
+                        filament = filset[filId]
+                        alignRow.setValue(md.RLN_ORIENT_PSI, filament.getAngle())
+                        transform = rowToAlignment(alignRow, em.ALIGN_2D)
+                        lastFilId = filId
+
+                    p.setTransform(transform)
+
                 partSet.append(p)
                 count += 1
 
@@ -508,15 +525,6 @@ class ProtRelionExtractParticles(em.ProtExtractParticles, ProtRelionBase):
 
     def _getOutputImgMd(self):
         return self._getPath('images.xmd')
-
-    def createParticles(self, item, row):
-        particle = rowToParticle(row, readCtf=self.ctfRelations.hasValue())
-        coord = particle.getCoordinate()
-        item.setY(coord.getY())
-        item.setX(coord.getX())
-        particle.setCoordinate(item)
-
-        item._appendItem = False
 
     def _preprocessMicrographRow(self, img, imgRow):
         # Temporarly convert the few micrographs to tmp and make sure
