@@ -92,7 +92,7 @@ class ProtSegmentHelices(ProtParticlePicking):
             startX, startY, endX, endY = filament.getEndpoints()
             length = filament.getLength()
             moveby = boxsize - overlap
-            angle = filament.getAngle()
+            angle = filament.getAngle()*math.pi/180
             moveX = math.cos(angle)*moveby
             moveY = math.sin(angle)*moveby
             amountSegments = int(length/moveby)
