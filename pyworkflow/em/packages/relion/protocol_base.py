@@ -596,7 +596,7 @@ class ProtRelionBase(EMProtocol):
 
             else:
                 form.addParam('innerDiameterA', FloatParam, label='Inner Diameter of Helix (A)',
-                              default=-1, condition='doHelix', validators=[params.Positive],
+                              default=-1, condition='doHelix',
                               help='Inner diameter of the reconstructed helix. '
                                    'Set to negative value if the helix is not hollow in the centre.')
 
@@ -629,9 +629,9 @@ class ProtRelionBase(EMProtocol):
                                   'fall out of the given ranges. Note that the final reconstruction '
                                   'can still converge if wrong helical and point group symmetry are '
                                   'provided.')
-                line1.addParam('minTwist', FloatParam, label='Min')
-                line1.addParam('maxTwist', FloatParam, label='Max')
-                line1.addParam('stepTwist', FloatParam, label='Step') #maybe default should be 0?
+                line1.addParam('minTwist', FloatParam, condition='doHelix and doLocalSymSearches', label='Min')
+                line1.addParam('maxTwist', FloatParam, condition='doHelix and doLocalSymSearches', label='Max')
+                line1.addParam('stepTwist', FloatParam, label='Step', allowsNull = True, condition='doHelix and doLocalSymSearches') #maybe default should be 0?
 
                 line2 = group.addLine('Rise search (A)', condition='doHelix and doLocalSymSearches',
                                      validators=[params.Positive],
@@ -644,9 +644,9 @@ class ProtRelionBase(EMProtocol):
                                   'reasonable symmetry if the true helical parameters fall out of '
                                   'the given ranges. Note that the final reconstruction can still '
                                   'converge if wrong helical and point group symmetry are provided.')
-                line2.addParam('minRise', FloatParam, label='Min')
-                line2.addParam('maxRise', FloatParam, label='Max')
-                line2.addParam('stepRise', FloatParam, label='Step')  #maybe default should be 0?
+                line2.addParam('minRise', FloatParam, label='Min', condition='doHelix and doLocalSymSearches')
+                line2.addParam('maxRise', FloatParam, label='Max', condition='doHelix and doLocalSymSearches')
+                line2.addParam('stepRise', FloatParam, label='Step', allowsNull = True, condition='doHelix and doLocalSymSearches')  #maybe default should be 0?
 
                 #zlength will have to be transformed from % to percentage for command
                 form.addParam('zLength', FloatParam, label='Central Z length (%)',
@@ -930,11 +930,11 @@ class ProtRelionBase(EMProtocol):
             #args['--helix'] = ''
             args['--helical_outer_diameter'] = self.tubeDiameterA.get()
 
-            if self.doBimodalPsi:
-                args['--bimodal_psi'] = ''
-
             if self.IS_2D and self.doImageAlignment:
                 args['--sigma_psi'] = self.angleSearchRange.get()/3
+
+                if self.doBimodalPsi:
+                    args['--bimodal_psi'] = ''
 
             if self.IS_3D:
                 if self.innerDiameterA > 0:
@@ -948,16 +948,18 @@ class ProtRelionBase(EMProtocol):
                     args['--helical_symmetry_search'] = ''
                     args['--helical_twist_min'] = self.minTwist.get()
                     args['--helical_twist_max'] = self.maxTwist.get()
-                    if stepTwist > 0:
-                        args['--helical_twist_inistep'] = self.stepTwist.get()
+                    if self.stepTwist.hasValue():
+                        if self.stepTwist > 0:
+                            args['--helical_twist_inistep'] = self.stepTwist.get()
                     args['--helical_rise_min'] = self.minRise.get()
                     args['--helical_rise_max'] = self.maxRise.get()
-                    if stepRise > 0:
-                        args['--helical_rise_inistep'] = self.stepRise.get()
+                    if self.stepRise.hasValue():
+                        if self.stepRise > 0:
+                            args['--helical_rise_inistep'] = self.stepRise.get()
 
                 args['--helical_z_percentage'] = self.zLength.get()/100
 
-                if self.doImageAlignment and not self.localAngularSearch or not IS_CLASSIFY:
+                if not self.IS_CLASSIFY or (self.doImageAlignment and not self.localAngularSearch):
                     args['--sigma_tilt'] = self.rangeTilt.get()/3
                     args['--sigma_psi'] = self.rangePsi.get()/3
                     args['--helical_sigma_distance'] = self.rangeLocalAveraging.get()/3
