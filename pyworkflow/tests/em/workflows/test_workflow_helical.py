@@ -25,6 +25,9 @@
 # **************************************************************************
 
 from pyworkflow.em import *
+from pyworkflow.em.packages.eman2 import ProtSegmentHelices
+from pyworkflow.em.packages.relion import ProtRelionExtractParticles
+
 from pyworkflow.tests import *
 from test_workflow import TestWorkflow
 
@@ -36,21 +39,38 @@ class TestWorkflowHelical(TestWorkflow):
         setupTestProject(cls)
         cls.ds = DataSet.getDataSet('tmv_helix')
 
-    def _runPickWorkflow(self):
-        #First, import a set of micrographs
-        print "Importing a set of micrographs..."
+    def test_tmv(self):
         protImport = self.newProtocol(ProtImportMicrographs,
+                                      objLabel='import TMV 4 mics',
                                       filesPath=self.ds.getFile('micrographs'),
                                       filesPattern='TMV*.mrc',
                                       samplingRateMode=0,
                                       samplingRate=1.062,
                                       voltage=300,
                                       sphericalAberration=2.7)
-        protImport.setObjLabel('import TMV 4 mics')
         self.launchProtocol(protImport)
         self.assertIsNotNone(protImport.outputMicrographs,
                              "There was a problem with the import")
-        
-    def test_tmv(self):
-        protPick1 = self._runPickWorkflow()
+
+        protImportFil = self.newProtocol(ProtImportFilaments,
+                                         filesPath=self.ds.getFile('coords'),
+                                         filesPattern='TMV*.box',
+                                         boxSize=250)
+        protImportFil.inputMicrographs.set(protImport.outputMicrographs)
+        self.launchProtocol(protImportFil)
+
+        protSegment = self.newProtocol(ProtSegmentHelices,
+                                       boxSize=250,
+                                       overlap=600)
+        protSegment.inputFilaments.set(protImportFil.outputFilaments)
+        self.launchProtocol(protSegment)
+
+        protExtract = self.newProtocol(ProtRelionExtractParticles,
+                                       boxSize=250,
+                                       doInvert=True,
+                                       doNormalize=True)
+        protExtract.inputCoordinates.set(protSegment.outputCoordinates)
+        self.launchProtocol(protExtract)
+
+
 
