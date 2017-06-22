@@ -71,18 +71,33 @@ class ProtAnglesAssign(ProtProcessParticles):
             for part in particles.iterItems():
 
                 #retrieving old alignment#
-             #  if particles.hasAlignment2D():
-              #      row2D = md.Row()
-              #      transform = part.getTransform()
-               #     row2D = alignmentToRow(transform, alignRow, em.ALIGN_2D)
-                #    ......alignRowpsi = row2Dpsi
-                #if particles.hasAlignmentProj():
-                #..................
+                if particles.hasAlignment2D():
+                    row2D = md.Row() #maybe unnecessary?
+                    transform = part.getTransform()
+                    alignmentToRow(transform, row2D, em.ALIGN_2D)
+                    alignRow.copyFromRow(row2D)
+                if particles.hasAlignmentProj():
+                    rowProj = md.Row()
+                    transform = part.getTransform()
+                    alignmentToRow(transform, rowProj, em.ALIGN_PROJ)
+                    alignRow.copyFromRow(rowProj)
 
                 alignRow.setValue(md.RLN_ORIENT_TILT, 90)
                 transform = rowToAlignment(alignRow, em.ALIGN_PROJ)
                 part.setTransform(transform)
                 partSet.append(part)
+
+        #This part is not ready yet. I am getting an error when trzing to iterate through new set
+        #Strange, since I don't when I do it further down...
+        #if self.randomizeRot:
+         #   partSet2 = self._createSetOfParticles()
+          #  partSet2.setAlignmentProj()
+           # for part in partSet.iterItems():
+            #    alignRow = md.Row()
+             #   alignRow.setValue(md.RLN_ORIENT_ROT, randint(-180,180))
+              #  transform = rowToAlignment(alignRow, em.ALIGN_PROJ)
+               # part.setTransform(transform)
+                #partSet2.append(part)
 
         #Checking if the old SetOfParticles (particles) has the new alignment:
         for part in particles.iterItems():
@@ -97,19 +112,7 @@ class ProtAnglesAssign(ProtProcessParticles):
             alignmentToRow(trans, row, em.ALIGN_PROJ)
             print row
 
-        #This part is not ready yet. If indeed we make a new set of particles (partSet)
-        #then I get the problem that I cannot iterate through the new set. (Why?)
-        #if self.randomizeRot:
-        #    partSet2 = self._createSetOfParticles()
-        #    partSet2.setAlignmentProj()
-        #    for part in particles.iterItems():
-        #        alignRow = md.Row()
-        #        alignRow.setValue(md.RLN_ORIENT_ROT, randint(-180,180))
-        #        transform = rowToAlignment(alignRow, em.ALIGN_PROJ)
-        #        part.setTransform(transform)
-        #        partSet2.append(part)
-
-
-
+        #ERROR: outputParticles has no sampling rate!!!
+        
         self._defineOutputs(outputParticles=partSet)
         self._defineSourceRelation(self.inputParticles, partSet)
