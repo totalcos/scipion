@@ -86,62 +86,15 @@ class ProtAnglesAssign(ProtProcessParticles):
         self._defineOutputs(outputParticles=outputParts)
         self._defineSourceRelation(self.inputParticles, outputParts)
 
+        #####This is where I am testing:
+        for part in outputParts.iterItems():
+            row = md.Row()
+            trans = part.getTransform()
+            alignmentToRow(trans, row, em.ALIGN_PROJ)
+            print row
+        ################################
+
         return
-
-        # TODO: From here the code can be deleted after testing
-
-        #partSet.copyInfo(particles.getMicrographs())
-        if self.assignTilt90:
-            partSet.setAlignmentProj()
-            alignRow = md.Row()
-            for part in inputParts.iterItems():
-
-                #retrieving old alignment#
-                if inputParts.hasAlignment2D():
-                    row2D = md.Row() #maybe unnecessary?
-                    transform = part.getTransform()
-                    alignmentToRow(transform, row2D, em.ALIGN_2D)
-                    alignRow.copyFromRow(row2D)
-                if inputParts.hasAlignmentProj():
-                    rowProj = md.Row()
-                    transform = part.getTransform()
-                    alignmentToRow(transform, rowProj, em.ALIGN_PROJ)
-                    alignRow.copyFromRow(rowProj)
-
-                alignRow.setValue(md.RLN_ORIENT_TILT, 90)
-                transform = rowToAlignment(alignRow, em.ALIGN_PROJ)
-                part.setTransform(transform)
-                partSet.append(part)
-
-        #This part is not ready yet. I am getting an error when trzing to iterate through new set
-        #Strange, since I don't when I do it further down...
-        #if self.randomizeRot:
-         #   partSet2 = self._createSetOfParticles()
-          #  partSet2.setAlignmentProj()
-           # for part in partSet.iterItems():
-            #    alignRow = md.Row()
-             #   alignRow.setValue(md.RLN_ORIENT_ROT, randint(-180,180))
-              #  transform = rowToAlignment(alignRow, em.ALIGN_PROJ)
-               # part.setTransform(transform)
-                #partSet2.append(part)
-
-        #Checking if the old SetOfParticles (particles) has the new alignment:
-        for part in inputParts.iterItems():
-            row = md.Row()
-            trans = part.getTransform()
-            alignmentToRow(trans, row, em.ALIGN_PROJ)
-            print row
-        #Checking if the new SetOfParticles (particles) has the new alignment:
-        for part in partSet.iterItems():
-            row = md.Row()
-            trans = part.getTransform()
-            alignmentToRow(trans, row, em.ALIGN_PROJ)
-            print row
-
-        #ERROR: outputParticles has no sampling rate!!!
-        
-        self._defineOutputs(outputParticles=partSet)
-        self._defineSourceRelation(self.inputParticles, partSet)
 
     def _updateItemTransform(self, particle, row):
         """ Set the tilt angle to 90 and randomize rot.
@@ -157,7 +110,7 @@ class ProtAnglesAssign(ProtProcessParticles):
             alignRow.setValue(md.RLN_ORIENT_TILT, 90)
 
         if self.randomizeRot:
-            alignRow.setValue(md.RLN_ORIENT_TILT, randint(0, 359))
+            alignRow.setValue(md.RLN_ORIENT_ROT, randint(-180,179))
 
         transform = rowToAlignment(alignRow, em.ALIGN_PROJ)
         particle.setTransform(transform)
