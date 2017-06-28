@@ -28,7 +28,7 @@
 
 import math
 
-from pyworkflow.object import Pointer, Integer
+from pyworkflow.object import Pointer, Integer, Float
 import pyworkflow.protocol.params as params
 from pyworkflow.em.data import Coordinate
 from pyworkflow.em.protocol.protocol_particles import ProtParticlePicking
@@ -98,6 +98,9 @@ class ProtSegmentHelices(ProtParticlePicking):
             amountSegments = int(length/moveby)
             mic = micDict[filament.getMicId()]
             coord = self.makeFilCoord(startX, startY, mic, filament.getObjId())
+            #trackLength gives the position along the helix in A - is required for relion helix star file
+            trackLength = 0
+            coord.trackLength = Float(trackLength)
             outputCoords.append(coord)
 
             for counter in range(amountSegments):
@@ -105,12 +108,15 @@ class ProtSegmentHelices(ProtParticlePicking):
                 # the x and y values and clean
                 startX += moveX
                 startY += moveY
+                coord.trackLength = Float(trackLength)
                 coord.setX(round(startX))
                 coord.setY(round(startY))
                 coord.setObjId(None) # Reset id to insert as a new coordinate
                 outputCoords.append(coord)
+                trackLength += moveby
 
             lastCoord = self.makeFilCoord(endX, endY, mic, filament.getObjId())
+            lastCoord.trackLength = Float(trackLength)
             outputCoords.append(lastCoord)
 
         outputCoords.filamentsPointer = Pointer()
