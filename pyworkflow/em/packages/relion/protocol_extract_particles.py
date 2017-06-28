@@ -31,6 +31,7 @@ from pyworkflow.protocol.constants import STATUS_FINISHED
 import pyworkflow.protocol.params as params
 import pyworkflow.em as em
 import pyworkflow.em.metadata as md
+from pyworkflow.object import Float
 
 from convert import (writeSetOfCoordinates, writeSetOfMicrographs,
                      isVersion2, rowToAlignment)
@@ -365,6 +366,7 @@ class ProtRelionExtractParticles(em.ProtExtractParticles, ProtRelionBase):
                         lastFilId = filId
 
                     p.setTransform(transform)
+                    p.trackLength = Float(coord.trackLength.get())
 
                 partSet.append(p)
                 count += 1
