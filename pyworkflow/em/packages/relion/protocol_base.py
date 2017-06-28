@@ -606,8 +606,9 @@ class ProtRelionBase(EMProtocol):
                                          'symmetry are planned , the initial values of twist and '
                                          'rise should be within the respective range.')
 
-                line.addParam('initialTwist', FloatParam, label='Twist (deg)')
-                line.addParam('initialRise', FloatParam, label='Rise (A)', validators=[params.Positive])
+                line.addParam('initialTwist', FloatParam, label='Twist (deg)', condition='doHelix')
+                line.addParam('initialRise', FloatParam, label='Rise (A)',
+                              condition='doHelix', validators=[params.Positive])
                 #ToDo solve problem with line being too long
 
                 group = form.addGroup('local symmetry searches')
@@ -684,8 +685,8 @@ class ProtRelionBase(EMProtocol):
                                           'These options will be invalid '
                                           'if you choose to perform local angular searches or not to perform '
                                           'image alignment on "Sampling" tab.')
-                line3.addParam('rangeTilt', FloatParam, label='out of plane (tilt)')
-                line3.addParam('rangePsi', FloatParam, label='in plane (psi)')
+                line3.addParam('rangeTilt', FloatParam, label='out of plane (tilt)', condition='doHelix')
+                line3.addParam('rangePsi', FloatParam, label='in plane (psi)', condition='doHelix')
                 #Todo Fix problem with line too long.
 
                 form.addParam('rangeLocalAveraging', FloatParam, label='Range factor of local averaging',
