@@ -86,16 +86,6 @@ class ProtAnglesAssign(ProtProcessParticles):
         self._defineOutputs(outputParticles=outputParts)
         self._defineSourceRelation(self.inputParticles, outputParts)
 
-        #####This is where I am testing:
-        for part in outputParts.iterItems():
-            row = md.Row()
-            trans = part.getTransform()
-            alignmentToRow(trans, row, em.ALIGN_PROJ)
-            print row
-        ################################
-
-        return
-
     def _updateItemTransform(self, particle, row):
         """ Set the tilt angle to 90 and randomize rot.
         row is None in this case since we will not
