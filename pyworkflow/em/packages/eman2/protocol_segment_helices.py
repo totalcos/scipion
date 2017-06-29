@@ -68,6 +68,11 @@ class ProtSegmentHelices(ProtParticlePicking):
                            'This defines how finely you want to segment the '
                            'filament.')
 
+        form.addParam('doBimodalPriors', params.BooleanParam, label='Use bimodal angular priors?',
+                      default=True, help='Normally it should be set to Yes and bimodal angular priors '
+                                         'will be applied in the following classification and refinement jobs. '
+                                         'Set to No if the 3D helix looks the same when rotated upside down.')
+
     #--------------- INSERT steps functions ----------------
 
     def _insertAllSteps(self):
@@ -84,6 +89,11 @@ class ProtSegmentHelices(ProtParticlePicking):
         boxsize = self.boxSize.get()
         outputCoords = self._createSetOfCoordinates(mics)
 
+        if self.doBimodalPriors.get():
+            bimodalPriors = 0.5
+        else:
+            bimodalPriors = 0
+
         micDict = {}
         for mic in mics.iterItems():
             micDict[mic.getObjId()] = mic.clone()
@@ -97,9 +107,10 @@ class ProtSegmentHelices(ProtParticlePicking):
             moveY = math.sin(angle)*moveby
             amountSegments = int(length/moveby)
             mic = micDict[filament.getMicId()]
-            coord = self.makeFilCoord(startX, startY, mic, filament.getObjId())
+            coord = self.makeFilCoord(startX, startY, mic, filament.getObjId(), bimodalPriors)
             #trackLength gives the position along the helix in A - is required for relion helix star file
             trackLength = 0
+            coord.bimodalPriors = Float(bimodalPriors)
             coord.trackLength = Float(trackLength)
             outputCoords.append(coord)
 
@@ -115,7 +126,7 @@ class ProtSegmentHelices(ProtParticlePicking):
                 outputCoords.append(coord)
                 trackLength += moveby
 
-            lastCoord = self.makeFilCoord(endX, endY, mic, filament.getObjId())
+            lastCoord = self.makeFilCoord(endX, endY, mic, filament.getObjId(), bimodalPriors)
             lastCoord.trackLength = Float(trackLength)
             outputCoords.append(lastCoord)
 
@@ -141,9 +152,10 @@ class ProtSegmentHelices(ProtParticlePicking):
 
     #--------------- UTILS functions -------------------------
 
-    def makeFilCoord(self, x, y, mic, filamentId):
+    def makeFilCoord(self, x, y, mic, filamentId, bimodalPriors):
         newCoord = Coordinate()
         newCoord.setPosition(x,y)
         newCoord.setMicrograph(mic)
         newCoord.filamentId = Integer(filamentId)
+        newCoord.bimodalPriors = Float(bimodalPriors)
         return newCoord
