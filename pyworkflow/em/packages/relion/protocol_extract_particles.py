@@ -367,6 +367,10 @@ class ProtRelionExtractParticles(em.ProtExtractParticles, ProtRelionBase):
 
                     p.setTransform(transform)
                     p.trackLength = Float(coord.trackLength.get())
+                    p.bimodalPriors = Float(coord.bimodalPriors.get())
+                    #Should we print an error message incase particles come with filaments but without trackLength
+                    # or bimodalPriors param?
+                    #(shouldn't really happen though...)
 
                 partSet.append(p)
                 count += 1
