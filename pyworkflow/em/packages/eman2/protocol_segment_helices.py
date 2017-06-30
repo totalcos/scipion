@@ -119,12 +119,12 @@ class ProtSegmentHelices(ProtParticlePicking):
                 # the x and y values and clean
                 startX += moveX
                 startY += moveY
+                trackLength += moveby
                 coord.trackLength = Float(trackLength)
                 coord.setX(round(startX))
                 coord.setY(round(startY))
                 coord.setObjId(None) # Reset id to insert as a new coordinate
                 outputCoords.append(coord)
-                trackLength += moveby
 
             lastCoord = self.makeFilCoord(endX, endY, mic, filament.getObjId(), bimodalPriors)
             lastCoord.trackLength = Float(trackLength)
