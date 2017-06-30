@@ -595,10 +595,12 @@ class ProtRelionBase(EMProtocol):
                            'previous alignment.')
 
             else:
-                form.addParam('innerDiameterA', FloatParam, label='Inner Diameter of Helix (A)',
+                form.addParam('innerDiameterA', FloatParam,
+                              label='Inner Diameter of Helix (A)',
                               default=-1, condition='doHelix',
                               help='Inner diameter of the reconstructed helix. '
-                                   'Set to negative value if the helix is not hollow in the centre.')
+                                   'Set to negative value if the helix is not '
+                                   'hollow in the centre.')
 
                 line = form.addLine('Initial symmetry', condition='doHelix',
                                     help='Initial helical symmetry. Set twist to positive value '
@@ -632,7 +634,9 @@ class ProtRelionBase(EMProtocol):
                                   'provided.')
                 line1.addParam('minTwist', FloatParam, condition='doHelix and doLocalSymSearches', label='Min')
                 line1.addParam('maxTwist', FloatParam, condition='doHelix and doLocalSymSearches', label='Max')
-                line1.addParam('stepTwist', FloatParam, label='Step', allowsNull = True, condition='doHelix and doLocalSymSearches') #maybe default should be 0?
+                line1.addParam('stepTwist', FloatParam, label='Step',
+                               allowsNull=True,
+                               condition='doHelix and doLocalSymSearches') #maybe default should be 0?
 
                 line2 = group.addLine('Rise search (A)', condition='doHelix and doLocalSymSearches',
                                      validators=[params.Positive],
@@ -645,9 +649,10 @@ class ProtRelionBase(EMProtocol):
                                   'reasonable symmetry if the true helical parameters fall out of '
                                   'the given ranges. Note that the final reconstruction can still '
                                   'converge if wrong helical and point group symmetry are provided.')
-                line2.addParam('minRise', FloatParam, label='Min', condition='doHelix and doLocalSymSearches')
-                line2.addParam('maxRise', FloatParam, label='Max', condition='doHelix and doLocalSymSearches')
-                line2.addParam('stepRise', FloatParam, label='Step', allowsNull = True, condition='doHelix and doLocalSymSearches')  #maybe default should be 0?
+                line2.addParam('minRise', FloatParam, label='Min')
+                line2.addParam('maxRise', FloatParam, label='Max')
+                line2.addParam('stepRise', FloatParam, label='Step',
+                               allowsNull=True)  #maybe default should be 0?
 
                 #zlength will have to be transformed from % to percentage for command
                 form.addParam('zLength', FloatParam, label='Central Z length (%)',
@@ -685,8 +690,10 @@ class ProtRelionBase(EMProtocol):
                                           'These options will be invalid '
                                           'if you choose to perform local angular searches or not to perform '
                                           'image alignment on "Sampling" tab.')
-                line3.addParam('rangeTilt', FloatParam, label='out of plane (tilt)', condition='doHelix')
-                line3.addParam('rangePsi', FloatParam, label='in plane (psi)', condition='doHelix')
+                line3.addParam('rangeTilt', FloatParam, condition='doHelix',
+                               label='out of plane (tilt)')
+                line3.addParam('rangePsi', FloatParam, condition='doHelix',
+                               label='in plane (psi)')
                 #Todo Fix problem with line too long.
 
                 form.addParam('rangeLocalAveraging', FloatParam, label='Range factor of local averaging',
@@ -988,7 +995,8 @@ class ProtRelionBase(EMProtocol):
             alignType = em.ALIGN_NONE
 
         writeSetOfParticles(imgSet, imgStar, self._getExtraPath(),
-                            alignType=alignType)
+                            alignType=alignType,
+                            postprocessImageRow=self._postprocessImageRow)
         
         if self.doCtfManualGroups:
             self._splitInCTFGroups(imgStar)
@@ -1008,7 +1016,7 @@ class ProtRelionBase(EMProtocol):
                 writeSetOfParticles(auxMovieParticles,
                                     self._getFileName('movie_particles'),
                                     None, originalSet=imgSet,
-                                    postprocessImageRow=self._postprocessImageRow)
+                                    postprocessImageRow=self._postprocessMovieParticleRow)
                 mdMovies = md.MetaData(self._getFileName('movie_particles'))
                 mdParts = md.MetaData(self._getFileName('input_star'))
                 
@@ -1320,7 +1328,7 @@ class ProtRelionBase(EMProtocol):
     def _getnumberOfIters(self):
         return self._getContinueIter() + self.numberOfIterations.get()
     
-    def _postprocessImageRow(self, img, imgRow):
+    def _postprocessMovieParticleRow(self, img, imgRow):
         partId = img.getParticleId()
         magnification = img.getAcquisition().getMagnification()
         imgRow.setValue(md.RLN_PARTICLE_ID, long(partId))
@@ -1328,3 +1336,9 @@ class ProtRelionBase(EMProtocol):
         imgRow.setValue(md.RLN_MICROGRAPH_NAME,
                         "%06d@fake_movie_%06d.mrcs"
                         % (img.getFrameId() + 1, img.getMicId()))
+
+    def _postprocessImageRow(self, img, imgRow):
+        if self.doHelix:
+            coord = img.getCoordinate()
+            imgRow.setValue(md.RLN_PARTICLE_HELICAL_TUBE_ID,
+                            coord.filamentId.get())
