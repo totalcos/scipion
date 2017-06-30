@@ -45,7 +45,7 @@ from pyworkflow.em.protocol import EMProtocol
 
 from constants import ANGULAR_SAMPLING_LIST, MASK_FILL_ZERO, V2_0, V1_3
 from convert import (convertBinaryVol, writeSetOfParticles, getVersion,
-                     getImageLocation, convertMask)
+                     getImageLocation, convertMask, alignmentToRow)
 
 
 class ProtRelionBase(EMProtocol):
@@ -649,12 +649,13 @@ class ProtRelionBase(EMProtocol):
                                   'reasonable symmetry if the true helical parameters fall out of '
                                   'the given ranges. Note that the final reconstruction can still '
                                   'converge if wrong helical and point group symmetry are provided.')
-                line2.addParam('minRise', FloatParam, label='Min')
-                line2.addParam('maxRise', FloatParam, label='Max')
+                line2.addParam('minRise', FloatParam,
+                               condition='doHelix and doLocalSymSearches', label='Min')
+                line2.addParam('maxRise', FloatParam,
+                               condition='doHelix and doLocalSymSearches', label='Max')
                 line2.addParam('stepRise', FloatParam, label='Step',
                                allowsNull=True)  #maybe default should be 0?
 
-                #zlength will have to be transformed from % to percentage for command
                 form.addParam('zLength', FloatParam, label='Central Z length (%)',
                               condition='doHelix',
                               validators=[params.Positive, params.Range(0., 100., error='Percentage '
@@ -935,7 +936,6 @@ class ProtRelionBase(EMProtocol):
     def _setHelixArgs(self, args):
 
         if self.doHelix:
-            #args['--helix'] = ''
             args['--helical_outer_diameter'] = self.tubeDiameterA.get()
 
             if self.IS_2D and self.doImageAlignment:
@@ -1342,3 +1342,15 @@ class ProtRelionBase(EMProtocol):
             coord = img.getCoordinate()
             imgRow.setValue(md.RLN_PARTICLE_HELICAL_TUBE_ID,
                             coord.filamentId.get())
+            imgRow.setValue(md.RLN_PARTICLE_HELICAL_TRACK_LENGTH,
+                            coord.trackLength.get())
+            imgRow.setValue(md.RLN_ORIENT_PSI_PRIOR_FLIP_RATIO,
+                            coord.bimodalPriors.get())
+            imgRow.setValue(md.RLN_ORIENT_TILT_PRIOR,
+                            90.)
+            transform = img.getTransform()
+            alignRow = md.Row()
+            alignmentToRow(transform, alignRow, em.ALIGN_2D)
+            psi = alignRow.getValue(md.RLN_ORIENT_PSI)
+            imgRow.setValue(md.RLN_ORIENT_PSI_PRIOR,
+                            psi)
