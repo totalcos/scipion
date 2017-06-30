@@ -40,7 +40,7 @@ except ImportError:
 
 
 __version__ = 'devel'
-__nickname__ = ''
+__nickname__ = 'devel'
 __releasedate__ = ''
 
 
