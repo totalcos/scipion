@@ -39,8 +39,8 @@ except ImportError:
     from configparser import ConfigParser, ParsingError  # Python 3
 
 
-__version__ = 'v1.2'
-__nickname__ = 'Caligula'
+__version__ = ''
+__nickname__ = ''
 __releasedate__ = ''
 
 

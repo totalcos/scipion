@@ -1,6 +1,6 @@
 # ******************************************************************************
 # *
-# * Authors:     Josue Gomez Blanco (jgomez@cnb.csic.es)
+# * Authors:     Josue Gomez Blanco (josue.gomez-blanco@mcgill.ca)
 # *              Roberto Marabini (roberto@cnb.csic.es)
 # *              J.M. de la Rosa Trevin (jmdelarosa@cnb.csic.es)
 # *              Vahid Abrishami (vabrisahmi@cnb.csic.es)
@@ -351,6 +351,7 @@ class XmippProtOFAlignment(ProtAlignMovies):
         meanX, meanY = self._loadMeanShifts(movie)
         plotter = createAlignmentPlot(meanX, meanY)
         plotter.savefig(self._getPlotCart(movie))
+        plotter.close()
 
     def _createOutputMicrographs(self):
         createWeighted = self._createOutputWeightedMicrographs()
