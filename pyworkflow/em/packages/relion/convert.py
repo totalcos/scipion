@@ -33,12 +33,10 @@ from collections import OrderedDict
 from itertools import izip
 
 from pyworkflow.object import ObjectWrap, String, Integer
-from pyworkflow.utils import Environ
-from pyworkflow.utils.path import (createLink, cleanPath, copyFile,
-                                   replaceBaseExt, getExt, removeExt)
+import pyworkflow.utils as pwutils
 import pyworkflow.em as em
 import pyworkflow.em.metadata as md
-from pyworkflow.em.packages.relion.constants import V1_3, V1_4, V2_0, V2_1
+from .constants import V1_3, V1_4, V2_0, V2_1, V3_0
 
 # This dictionary will be used to map
 # between CTFModel properties and Xmipp labels
@@ -129,7 +127,7 @@ ALIGNMENT_DICT = OrderedDict([
 def getEnviron():
     """ Setup the environment variables needed to launch Relion. """
     
-    environ = Environ(os.environ)
+    environ = pwutils.Environ(os.environ)
 
     relionHome = os.environ[RELION_HOME]
     
@@ -140,13 +138,14 @@ def getEnviron():
         environ.update({'PATH': binPath,
                         'LD_LIBRARY_PATH': libPath,
                         'SCIPION_MPI_FLAGS': os.environ.get('RELION_MPI_FLAGS', ''),
-                        }, position=Environ.BEGIN)
+                        }, position=pwutils.Environ.BEGIN)
     
     # Take Scipion CUDA library path
     cudaLib = environ.getFirst(('RELION_CUDA_LIB', 'CUDA_LIB'))
     environ.addLibrary(cudaLib)
 
     return environ
+
 
 def getVersion():
     path = os.environ['RELION_HOME']
@@ -160,8 +159,12 @@ def isVersion2():
     return getVersion().startswith("2.")
 
 
+def isVersion3():
+    return getVersion().startswith("3.")
+
+
 def getSupportedVersions():
-    return [V2_0, V2_1]
+    return [V2_0, V2_1, V3_0]
 
 
 def locationToRelion(index, filename):
@@ -208,11 +211,7 @@ def objectToRow(obj, row, attrDict, extraLabels=[]):
         extraLabels: a list with extra labels that could be included
             as _xmipp_labelName
     """
-    if obj.isEnabled():
-        enabled = True
-    else:
-        enabled = False
-    row.setValue(md.RLN_IMAGE_ENABLED, enabled)
+    row.setValue(md.RLN_IMAGE_ENABLED, obj.isEnabled())
     
     for attr, label in attrDict.iteritems():
         if hasattr(obj, attr):
@@ -706,7 +705,7 @@ def writeSqliteIterData(imgStar, imgSqlite, **kwargs):
     for this iteration. This file can be visualized sorted
     by the LogLikelihood.
     """
-    cleanPath(imgSqlite)
+    pwutils.cleanPath(imgSqlite)
     imgSet = em.SetOfParticles(filename=imgSqlite)
     readSetOfParticles(imgStar, imgSet, **kwargs)
     imgSet.write()
@@ -765,9 +764,9 @@ def copyOrLinkFileName(imgRow, prefixDir, outputDir, copyFiles=False):
     newName = os.path.join(outputDir, baseName)
     if not os.path.exists(newName):
         if copyFiles:
-            copyFile(os.path.join(prefixDir, imgPath), newName)
+            pwutils.copyFile(os.path.join(prefixDir, imgPath), newName)
         else:
-            createLink(os.path.join(prefixDir, imgPath), newName)
+            pwutils.createLink(os.path.join(prefixDir, imgPath), newName)
             
     imgRow.setValue(md.RLN_IMAGE_NAME, locationToRelion(index, newName))
     
@@ -808,8 +807,8 @@ def convertBinaryFiles(imgSet, outputDir, extension='mrcs'):
         It is possible that the base name overlap if they come
         from different runs. (like partices.mrcs after relion preprocess)
         """
-        newFn = join(outputDir, replaceBaseExt(fn, extension))
-        newRoot = removeExt(newFn)
+        newFn = join(outputDir, pwutils.replaceBaseExt(fn, extension))
+        newRoot = pwutils.removeExt(newFn)
         
         values = filesDict.values()
         counter = 1
@@ -825,7 +824,7 @@ def convertBinaryFiles(imgSet, outputDir, extension='mrcs'):
         that it is a binary stack file and not a volume.
         """
         newFn = getUniqueFileName(fn, extension)
-        createLink(fn, newFn)
+        pwutils.createLink(fn, newFn)
         return newFn
         
     def convertStack(fn):
@@ -835,8 +834,9 @@ def convertBinaryFiles(imgSet, outputDir, extension='mrcs'):
         newFn = getUniqueFileName(fn, 'stk')
         ih.convertStack(fn, newFn)
         return newFn
-        
-    ext = getExt(imgSet.getFirstItem().getFileName())[1:] # remove dot in extension
+
+    # Get the extension without the .
+    ext = pwutils.getExt(imgSet.getFirstItem().getFileName())[1:]
     
     if ext == extension:
         mapFunc = createBinaryLink
@@ -876,7 +876,7 @@ def convertBinaryVol(vol, outputDir):
         """ Convert from a format that is not read by Relion
         to mrc format.
         """
-        newFn = join(outputDir, replaceBaseExt(fn, 'mrc'))
+        newFn = join(outputDir, pwutils.replaceBaseExt(fn, 'mrc'))
         ih.convert(fn, newFn)
         return newFn
         
@@ -902,7 +902,7 @@ def convertMask(img, outputDir):
     
     ih = em.ImageHandler()
     imgFn = getImageLocation(img.getLocation())
-    newFn = join(outputDir, replaceBaseExt(imgFn, 'mrc'))
+    newFn = join(outputDir, pwutils.replaceBaseExt(imgFn, 'mrc'))
     
     ih.truncateMask(imgFn, newFn)
     
