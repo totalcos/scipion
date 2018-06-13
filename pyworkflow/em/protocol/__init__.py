@@ -32,6 +32,7 @@ from protocol import *
 from protocol_micrographs import *
 from protocol_movies import *
 from protocol_align_movies import ProtAlignMovies, ProtAverageFrames
+from protocol_micrographs_thumbnail import ProtMicrographThumbnail
 from protocol_particles import *
 from protocol_particles_picking import *
 from protocol_2d import *
