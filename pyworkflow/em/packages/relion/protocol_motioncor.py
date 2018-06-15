@@ -25,7 +25,6 @@
 # ******************************************************************************
 
 import os
-import time
 from itertools import izip
 from math import ceil
 
@@ -33,8 +32,6 @@ import pyworkflow.protocol.params as params
 import pyworkflow.protocol.constants as cons
 import pyworkflow.utils as pwutils
 import pyworkflow.em as em
-from pyworkflow.em.data import MovieAlignment
-from pyworkflow.em.packages.xmipp3.convert import writeShiftsMovieAlignment
 from pyworkflow.em.protocol import ProtAlignMovies
 from pyworkflow.gui.plotter import Plotter
 from pyworkflow.protocol import STEPS_SERIAL
@@ -69,6 +66,23 @@ class ProtRelionMotioncor(ProtAlignMovies):
         line.addParam('sumFrameN', params.IntParam, default=0,
                       label='to')
 
+        form.addParam('doDW', params.BooleanParam, default=False,
+                       label='Do dose-weighting?',
+                       help='If set to Yes, the averaged micrographs will be '
+                            'dose-weighted. \n\n'
+                            'NOTE: In Scipion the Voltage and and Dose '
+                            'information is provided during import, so you '
+                            'do not need to provide them anymore. ')
+
+        form.addParam('saveNonDW', params.BooleanParam, default=False,
+                       condition='doDW',
+                       label='Save non-dose weighted as well?',
+                       help='Aligned but non-dose weighted images are '
+                            'sometimes useful in CTF estimation, although '
+                            'there is no difference in most cases. Whichever '
+                            'the choice, CTF refinement job is always done on '
+                            'dose-weighted particles.')
+
         group = form.addGroup("Motion")
 
         group.addParam('bfactor', params.IntParam, default=150,
@@ -97,24 +111,27 @@ class ProtRelionMotioncor(ProtAlignMovies):
                             'Float-values may be used. Do make sure though '
                             'that the resulting micrograph size is even.')
 
-        group = form.addGroup("Dose-weight")
+        group.addParam('gainRotation', params.EnumParam, default=0,
+                       choices=['No rotation (0)',
+                                ' 90 degrees (1)',
+                                '180 degrees (2)',
+                                '270 degrees (3)'],
+                      label='Gain rotation',
+                      help="Rotate the gain reference by this number times 90 "
+                           "degrees clockwise in relion_display. This is the "
+                           "same as -RotGain in MotionCor2. \n"
+                           "Note that MotionCor2 uses a different convention "
+                           "for rotation so it says 'counter-clockwise'.")
 
-        group.addParam('doDW', params.BooleanParam, default=False,
-                       label='Do dose-weighting?',
-                       help='If set to Yes, the averaged micrographs will be '
-                            'dose-weighted. \n\n'
-                            'NOTE: In Scipion the Voltage and and Dose '
-                            'information is provided during import, so you '
-                            'do not need to provide them anymore. ')
-
-        group.addParam('saveNonDW', params.BooleanParam, default=False,
-                       condition='doDW',
-                       label='Save non-dose weighted as well?',
-                       help='Aligned but non-dose weighted images are '
-                            'sometimes useful in CTF estimation, although '
-                            'there is no difference in most cases. Whichever '
-                            'the choice, CTF refinement job is always done on '
-                            'dose-weighted particles.')
+        group.addParam('gainFlip', params.EnumParam, default=0,
+                       choices=['No flipping        (0)',
+                                'Flip upside down   (1)',
+                                'Flip left to right (2)'],
+                      label='Gain flip',
+                      help="Flip the gain reference after rotation. "
+                           "This is the same as -FlipGain in MotionCor2. "
+                           "0 means do nothing, 1 means flip Y (upside down) "
+                           "and 2 means flip X (left to right).")
 
         form.addParam('extraParams', params.StringParam, default='',
                       expertLevel=cons.LEVEL_ADVANCED,
