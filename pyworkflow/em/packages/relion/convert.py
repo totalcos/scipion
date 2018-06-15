@@ -952,7 +952,7 @@ def writeCoordinates(mic, fileName):
 
 
 def openStar(fn, extraLabels=False):
-    # We are going to write metadata directy to file to do it faster
+    # We are going to write metadata directly to file to do it faster
     f = open(fn, 'w')
     s = """
 data_
@@ -967,6 +967,7 @@ _rlnCoordinateY
         s += "_rlnAnglePsi\n"
     f.write(s)
     return f
+
 
 
 def writeSetOfCoordinates(posDir, coordSet, getStarFileFunc, scale=1):
