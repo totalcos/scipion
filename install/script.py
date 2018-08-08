@@ -194,10 +194,8 @@ arpack = env.addLibrary(
     default=False)
 # See http://modb.oce.ulg.ac.be/mediawiki/index.php/How_to_compile_ARPACK
 
-if get('CUDA'):
-    opencvFlags = ['-DWITH_FFMPEG=OFF -DWITH_CUDA:BOOL=ON']
-else:
-    opencvFlags = ['-DWITH_FFMPEG=OFF -DWITH_CUDA:BOOL=OFF']
+cudaStr = 'ON' if get('CUDA') else 'OFF'
+opencvFlags = ['-DWITH_FFMPEG=OFF -DWITH_CUDA:BOOL=' + cudaStr + '-DWITH_LIBV4L=ON -DWITH_V4L=OFF']
 opencv = env.addLibrary(
     'opencv',
     tar='opencv-2.4.13.tgz',
@@ -458,6 +456,9 @@ env.addPackage('localrec', version='1.1.0',
 
 env.addPackage('localrec', version='1.2.0',
                tar='localrec-1.2.0.tgz')
+
+env.addPackage('locscale', version='0.1',
+               tar='locscale-0.1.tgz')
 
 env.addPackage('resmap', version='1.1.5s2',
                tar='resmap-1.1.5-s2.tgz',
