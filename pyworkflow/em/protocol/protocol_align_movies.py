@@ -456,6 +456,12 @@ class ProtAlignMovies(ProtProcessMovies):
         """
         pass
 
+    def _doComputeMicThumbnail(self):
+        """ Should be implemented in sub-classes if want to check
+        the generation of thumbnails.
+        """
+        return False
+
     def _storeSummary(self, movie):
         """ Implement this method if you want to store the summary. """
         pass
