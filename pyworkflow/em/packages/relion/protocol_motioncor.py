@@ -39,8 +39,7 @@ from pyworkflow.protocol import STEPS_SERIAL
 
 class ProtRelionMotioncor(ProtAlignMovies):
     """
-    Wrapper protocol for the Relion's implementation
-    of the motioncor algorithm.
+    Wrapper protocol for the Relion's implementation of motioncor algorithm.
     """
 
     _label = 'motioncor'
@@ -227,10 +226,47 @@ class ProtRelionMotioncor(ProtAlignMovies):
         self._setPlotInfo(movie, mic)
 
     def _getMovieShifts(self, movie):
-        outStar = self._getMovieOutFn(movie, '')
-        # TODO: READ SHFITS FROM STAR
+        outStar = self._getMovieOutFn(movie, '.star')
+        # JMRT: I will parse the shift manually here from the .star file
+        # to avoid the need to include new labels and depend on binding code
+        # The following structure of the block is assumed:
+        """
+        data_global_shift
+
+        loop_
+        _rlnMicrographFrameNumber #1
+        _rlnMicrographShiftX #2
+        _rlnMicrographShiftY #3
+                   1     0.000000     0.000000
+                   2     -0.91811     1.351012
+                   ...
+        """
         xShifts, yShifts = [], []
-        return xShifts, yShifts
+
+        with open(outStar) as f:
+            # Locate the desired data block
+            found_data = False
+            found_loop = False
+
+            for line in f:
+                l = line.strip()
+                if found_data:
+                    if found_loop:
+                        if not l:
+                            break
+                        if not l.startswith('_rln'):
+                            parts = l.split()
+                            xShifts.append(float(parts[1]))
+                            yShifts.append(float(parts[2]))
+                    else:
+                        if l == 'loop_':
+                            found_loop = True
+                else:
+                    if l == 'data_global_shift':
+                        found_data = True
+
+        # Let's remove the last -999.99 that is in the last frame of the star file right now
+        return xShifts[:-1], yShifts[:-1]
 
     # --------------------------- UTILS functions -----------------------------
     def writeInputStar(self, starFn, *images):
@@ -291,13 +327,8 @@ class ProtRelionMotioncor(ProtAlignMovies):
             self.computePSDs(movie, aveMicFn, outMicFn,
                              outputFnCorrected=self._getPsdJpeg(movie))
 
-        return
-        # Create plots and save as an image
-        shiftsX, shiftsY = self._getMovieShifts(movie)
-        first, _ = self._getFrameRange(movie.getNumberOfFrames(), 'align')
-        plotter = createGlobalAlignmentPlot(shiftsX, shiftsY, first)
-        plotter.savefig(self._getPlotGlobal(movie))
-        plotter.close()
+        self._saveAlignmentPlots(movie)
+
 
     def _moveFiles(self, movie):
         # It really annoying that Relion default names changes if you use DW or not
@@ -335,52 +366,40 @@ class ProtRelionMotioncor(ProtAlignMovies):
                 return lastFrmAligned
         return movie.getNumberOfFrames()
 
+    def _saveAlignmentPlots(self, movie):
+        # Create plots and save as an image
+        shiftsX, shiftsY = self._getMovieShifts(movie)
+        first, _ = self._getFrameRange(movie.getNumberOfFrames(), 'align')
+        plotter = createGlobalAlignmentPlot(shiftsX, shiftsY, first)
+        plotter.savefig(self._getPlotGlobal(movie))
+        plotter.close()
+
 
 def createGlobalAlignmentPlot(meanX, meanY, first):
     """ Create a plotter with the shift per frame. """
-    sumMeanX = []
-    sumMeanY = []
-    preX = 0.0
-    preY = 0.0
-
     figureSize = (6, 4)
     plotter = Plotter(*figureSize)
     figure = plotter.getFigure()
     ax = figure.add_subplot(111)
     ax.grid()
-    ax.set_title('Alignment based upon full frames')
+    ax.set_title('Global shift')
     ax.set_xlabel('Shift x (pixels)')
     ax.set_ylabel('Shift y (pixels)')
-    # motioncor2 (1.0.2) values refer to the middle frame, so first frame is no longer 0,0
-    #if meanX[0] != 0 or meanY[0] != 0:
-    #    raise Exception("First frame shift must be (0,0)!")
+
     i = first
-
-    # ROB no accumulation is needed
-    # see Motioncor2 user manual: "The output and log files list the shifts relative to the first frame."
-    # or middle frame for motioncor2 1.0.2
-
-    # ROB unit seems to be pixels since samplingrate is only asked by the program if
-    # dose filtering is required
     skipLabels = ceil(len(meanX)/10.0)
     labelTick = 1
 
     for x, y in izip(meanX, meanY):
-        #preX += x
-        #preY += y
-        preX = x
-        preY = y
-        sumMeanX.append(preX)
-        sumMeanY.append(preY)
         if labelTick == 1:
-            ax.text(preX - 0.02, preY + 0.02, str(i))
+            ax.text(x - 0.02, y + 0.02, str(i))
             labelTick = skipLabels
         else:
             labelTick -= 1
         i += 1
 
-    ax.plot(sumMeanX, sumMeanY, color='b')
-    ax.plot(sumMeanX, sumMeanY, 'yo')
+    ax.plot(meanX, meanY, color='b')
+    ax.plot(meanX, meanY, 'yo')
 
     plotter.tightLayout()
 
