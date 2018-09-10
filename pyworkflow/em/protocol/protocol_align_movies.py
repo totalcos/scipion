@@ -52,7 +52,7 @@ class ProtAlignMovies(ProtProcessMovies):
     or the cropping options (region of interest)
     """
 
-    #--------------------------- DEFINE param functions ------------------------
+    # -------------------------- DEFINE param functions -----------------------
     def _defineParams(self, form):
         ProtProcessMovies._defineParams(self, form)
         self._defineAlignmentParams(form)
@@ -105,7 +105,6 @@ class ProtAlignMovies(ProtProcessMovies):
                       help="Save Aligned movie")
 
     # --------------------------- STEPS functions ----------------------------
-
     # FIXME: Methods will change when using the streaming for the output
     def createOutputStep(self):
         # validate that we have some output movies
@@ -190,8 +189,9 @@ class ProtAlignMovies(ProtProcessMovies):
                 if newMovie.getAlignment().getShifts()[0]:
                     movieSet.append(newMovie)
                 else:
-                    print(yellowStr("WARNING: Movie %s has empty alignment data, can't add it to "
-                                    "output set." % movie.getFileName()))
+                    print(yellowStr("WARNING: Movie %s has empty alignment "
+                                    "data, can't add it to output set."
+                                    % movie.getFileName()))
 
             self._updateOutputSet('outputMovies', movieSet, streamMode)
 
@@ -219,9 +219,8 @@ class ProtAlignMovies(ProtProcessMovies):
                 extraMicFn = self._getExtraPath(getOutputMicName(movie))
                 mic.setFileName(extraMicFn)
                 if not os.path.exists(extraMicFn):
-                    print(yellowStr("WARNING: Micrograph %s was not generated,"
-                                    " can't add it to output set."
-                                    % extraMicFn))
+                    print(yellowStr("WARNING: Micrograph %s was not generated, "
+                                    "can't add it to output set." % extraMicFn))
                     doneFailed.append(movie)
                     continue
                 self._preprocessOutputMicrograph(mic, movie)
@@ -254,7 +253,6 @@ class ProtAlignMovies(ProtProcessMovies):
                 outputStep.setStatus(cons.STATUS_NEW)
 
     # --------------------------- INFO functions ------------------------------
-
     def _validate(self):
         errors = []
 
@@ -315,7 +313,6 @@ class ProtAlignMovies(ProtProcessMovies):
         return errors
 
     # --------------------------- INFO functions -------------------------------
-
     def _summary(self):
         return [self.summaryVar.get('')]
 
@@ -389,7 +386,6 @@ class ProtAlignMovies(ProtProcessMovies):
         return alignedMovie
 
     # ---------- Hook functions that need to be implemented in subclasses ------
-
     def _getBinFactor(self):
         return self.getAttributeValue('binFactor', 1.0)
 
