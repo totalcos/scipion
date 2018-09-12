@@ -35,6 +35,7 @@ from protocol_classify2d import ProtRelionClassify2D
 from protocol_preprocess import ProtRelionPreprocessParticles
 from protocol_autopick import ProtRelionAutopickFom, ProtRelionAutopick
 from protocol_autopick_v2 import ProtRelion2Autopick, RUN_COMPUTE
+from protocol_autopick_v3 import ProtRelionAutopickLoG
 from protocol_create_mask3d import ProtRelionCreateMask3D
 from protocol_sort import ProtRelionSortParticles
 from protocol_initialmodel import ProtRelionInitialModel
@@ -230,7 +231,7 @@ class RelionAutopickParams(EmWizard):
         threshold.label = Threshold
         threshold.help = some help
         runDir = %(protDir)s
-        autopickCmd = %(autopickCmd)s
+        autopickCommand = %(autopickCmd)s
         convertCommand = %(convert)s --coordinates --from relion --to xmipp --input  %(micsSqlite)s --output %(coordsDir)s --extra %(protDir)s/extra
         """ % args)
         f.close()
@@ -370,3 +371,67 @@ class Relion2PartDiameter(RelionPartMaskDiameterWizard):
         else: # Gaussian blobs
             form.showWarning("This wizard only works when using input "
                              "references, not Gaussian blobs. ")
+
+
+class RelionWizLogPickParams(EmWizard):
+    _targets = [(ProtRelionAutopickLoG, ['minDiameter',
+                                         'maxDiameter',
+                                         'threshold'])]
+
+    def show(self, form):
+        autopickProt = form.protocol
+        project = autopickProt.getProject()
+        micSet = autopickProt.getInputMicrographs()
+        micfn = micSet.getFileName()
+        coordsDir = project.getTmpPath(micSet.getName())
+        params, minDiameter, maxDiameter, threshold = autopickProt._getPickArgs()
+
+        cleanPath(coordsDir)
+        makePath(coordsDir)
+        pickerProps = os.path.join(coordsDir, 'picker.conf')
+        f = open(pickerProps, "w")
+
+        autopickCmd = "%s relion_autopick " % pw.getScipionScript()
+        autopickCmd += ' --i extra/%(micrographName).star --o autopick ' + params
+        autopickCmd += ' --LoG_diam_min %(mind) '
+        autopickCmd += ' --LoG_diam_max %(maxd) '
+        autopickCmd += ' --LoG_adjust_threshold %(threshold) '
+
+        args = {
+            "convert": pw.join('apps', 'pw_convert.py'),
+            'coordsDir': coordsDir,
+            'micsSqlite': micSet.getFileName(),
+            "minDiameter": minDiameter,
+            "maxDiameter": maxDiameter,
+            "threshold": threshold,
+            'protDir': autopickProt.getWorkingDir(),
+            "autopickCmd": autopickCmd
+        }
+
+        f.write("""
+        parameters = mind,maxd,threshold
+        mind.value = %(minDiameter)s
+        mind.label = Min. Diameter for LoG filter
+        mind.help = some help
+        maxd.value = %(maxDiameter)s
+        maxd.label = Max. Diameter for LoG filter
+        maxd.help = some help
+        threshold.value =  %(threshold)s
+        threshold.label = Adjust default threshold
+        threshold.help = Lower threshold -> more particles
+        runDir = %(protDir)s
+        autopickCommand = %(autopickCmd)s
+        convertCommand = %(convert)s --coordinates --from relion --to xmipp --input  %(micsSqlite)s --output %(coordsDir)s --extra %(protDir)s/extra
+        hasInitialCoordinates = false
+        doPickAll = false
+        """ % args)
+        f.close()
+        process = CoordinatesObjectView(autopickProt.getProject(), micfn, coordsDir, autopickProt,
+                                        pickerProps=pickerProps).show()
+        process.wait()
+        myprops = pwutils.readProperties(pickerProps)
+
+        if myprops['applyChanges'] == 'true':
+            form.setVar('minDiameter', myprops['mind.value'])
+            form.setVar('maxDiameter', myprops['maxd.value'])
+            form.setVar('threshold', myprops['threshold.value'])

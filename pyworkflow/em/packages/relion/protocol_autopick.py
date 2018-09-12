@@ -34,7 +34,7 @@ from pyworkflow.em.protocol import ProtParticlePicking
 from pyworkflow.em.constants import RELATION_CTF
 
 from protocol_base import ProtRelionBase
-from convert import (writeSetOfMicrographs, writeReferences, isVersion2,
+from convert import (writeSetOfMicrographs, writeReferences, isVersion2, isVersion3,
                      readSetOfCoordinates)
 from pyworkflow.em.convert import ImageHandler
 import pyworkflow.em.metadata as md
@@ -46,7 +46,7 @@ class ProtRelionAutopickBase(ProtParticlePicking, ProtRelionBase):
 
     @classmethod
     def isDisabled(cls):
-        return isVersion2()
+        return isVersion2() or isVersion3()
 
     #--------------------------- INSERT steps functions ------------------------
     def _insertAllSteps(self): 
