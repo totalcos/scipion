@@ -351,9 +351,6 @@ class ProtRelionMotioncor(ProtAlignMovies):
         if iniFrame != indxFrame:
             first -= iniFrame
             last -= iniFrame
-        else:
-            first -= 1
-            last -= 1
 
         return first, last
 
