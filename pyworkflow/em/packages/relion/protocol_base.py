@@ -40,8 +40,8 @@ from pyworkflow.em.data import SetOfClasses3D
 from pyworkflow.em.protocol import EMProtocol
 
 from constants import ANGULAR_SAMPLING_LIST, MASK_FILL_ZERO, V2_0
-from convert import (convertBinaryVol, writeSetOfParticles, isVersion2,
-                     getVersion, getImageLocation, convertMask)
+from convert import (isVersion1, writeSetOfParticles, isVersion2,
+                     getVersion, getImageLocation, convertMask, isVersion3)
 
 
 class ProtRelionBase(EMProtocol):
@@ -361,7 +361,10 @@ class ProtRelionBase(EMProtocol):
                                'Too small values yield too-low resolution '
                                'structures; too high values result in '
                                'over-estimated resolutions and overfitting.')
-            if getVersion() != V2_0:  # version 2.1+ only
+
+            version = getVersion()
+
+            if version.startswith('2.1'):  # version 2.1+ only
                 form.addParam('doSubsets', BooleanParam, default=False,
                               condition='not doContinue',
                               label='Use subsets for initial updates?',
@@ -404,6 +407,18 @@ class ProtRelionBase(EMProtocol):
                                    'times the subset size is larger than the number '
                                    'of particles in the data set, then more than 1 '
                                    'iteration will be split into subsets.')
+            elif isVersion3():
+                form.addParam('useFastSubsets', BooleanParam, default=False,
+                              condition='not doContinue',
+                              label='Use fast subsets (for large data sets)?',
+                              help='If set to Yes, the first 5 iterations will '
+                                   'be done with random subsets of only K*100 '
+                                   'particles (K being the number of classes); '
+                                   'the next 5 with K*300 particles, the next '
+                                   '5 with 30% of the data set; and the final '
+                                   'ones with all data. This was inspired by '
+                                   'a cisTEM implementation by Niko Grigorieff'
+                                   ' et al.')
         form.addParam('maskZero', EnumParam, default=0,
                       choices=['Yes, fill with zeros',
                                'No, fill with random noise'],
@@ -796,7 +811,8 @@ class ProtRelionBase(EMProtocol):
             self._setContinueArgs(args)
         else:
             self._setNormalArgs(args)
-        if isVersion2():
+
+        if not isVersion1():
             self._setComputeArgs(args)
         
         params = ' '.join(['%s %s' % (k, str(v)) for k, v in args.iteritems()])
@@ -883,7 +899,7 @@ class ProtRelionBase(EMProtocol):
                         md.RLN_IMAGE_ID, md.INNER_JOIN)
             mdAux.fillConstant(md.RLN_PARTICLE_NR_FRAMES,
                                self._getNumberOfFrames())
-            if isVersion2():
+            if not isVersion1():
                 # FIXME: set to 1 till frame averaging is implemented in xmipp
                 mdAux.fillConstant(md.RLN_PARTICLE_NR_FRAMES_AVG, 1)
 
@@ -898,7 +914,7 @@ class ProtRelionBase(EMProtocol):
     def createOutputStep(self):
         pass  # should be implemented in subclasses
     
-    #--------------------------- INFO functions --------------------------------
+    # -------------------------- INFO functions -------------------------------
     def _validate(self):
         errors = []
         self.validatePackageVersion('RELION_HOME', errors)
@@ -1011,7 +1027,7 @@ class ProtRelionBase(EMProtocol):
                 args['--ini_high'] = self.initialLowPassFilterA.get()
                 args['--sym'] = self.symmetryGroup.get()
         
-        if not isVersion2():
+        if isVersion1():  # FIXME: Deprecate versions priors to 2.0
             args['--memory_per_thread'] = self.memoryPreThreads.get()
 
         refArg = self._getRefArg()
@@ -1073,7 +1089,7 @@ class ProtRelionBase(EMProtocol):
             args['--tau2_fudge'] = self.regularisationParamT.get()
             args['--iter'] = self._getnumberOfIters()
 
-            if not self.doContinue and isVersion2() and getVersion() != V2_0:
+            if not self.doContinue:
                 self._setSubsetArgs(args)
     
         self._setSamplingArgs(args)
@@ -1103,7 +1119,7 @@ class ProtRelionBase(EMProtocol):
             solventMask = convertMask(self.solventMask.get(), self._getTmpPath())
             args['--solvent_mask2'] = solventMask
 
-        if (isVersion2() and self.IS_3D and self.referenceMask.hasValue() and
+        if (not isVersion1() and self.IS_3D and self.referenceMask.hasValue() and
             self.solventFscMask):
             args['--solvent_correct_fsc'] = ''
 
@@ -1112,6 +1128,9 @@ class ProtRelionBase(EMProtocol):
             args['--write_subsets'] = 1
             args['--subset_size'] = self.subsetSize.get()
             args['--max_subsets'] = self.subsetUpdates.get()
+
+        if self._useFastSubsets():
+            args['--fast_subsets'] = ''
 
     def _getProgram(self, program='relion_refine'):
         """ Get the program name depending on the MPI use or not. """
@@ -1314,7 +1333,14 @@ class ProtRelionBase(EMProtocol):
     def _doSubsets(self):
         # Since 'doSubsets' property is only valid for 2.1+ protocols
         # we need provide a default value for backward compatibility
-        return self.getAttributeValue('doSubsets', False)
+        if getVersion().startswith("2.1"):
+            return self.getAttributeValue('doSubsets', False)
+        return False
+
+    def _useFastSubsets(self):
+        if isVersion3():
+            return self.getAttributeValue('useFastSubsets', False)
+        return False
     
     def _copyAlignAsPriors(self, mdParts, alignType):
         # set priors equal to orig. values

@@ -50,8 +50,7 @@ class ProtRelionClassify2D(ProtRelionBase, ProtClassify2D):
         ProtRelionBase._initialize(self)
         self.ClassFnTemplate = '%(ref)03d@%(rootDir)s/relion_it%(iter)03d_classes.mrcs'
         
-
-    #--------------------------- INSERT steps functions ------------------------
+    # -------------------------- INSERT steps functions -----------------------
     def _setSamplingArgs(self, args):
         """ Set sampling related params. """
         # Sampling stuff
@@ -62,7 +61,7 @@ class ProtRelionClassify2D(ProtRelionBase, ProtClassify2D):
         else:
             args['--skip_align'] = ''
 
-    #--------------------------- STEPS functions -------------------------------
+    # -------------------------- STEPS functions ------------------------------
     def _loadClassesInfo(self, iteration):
         """ Read some information about the produced Relion 2D classes
         from the *model.star file.
@@ -96,7 +95,7 @@ class ProtRelionClassify2D(ProtRelionBase, ProtClassify2D):
         self._defineOutputs(outputClasses=classes2D)
         self._defineSourceRelation(self.inputParticles, classes2D)
         
-    #--------------------------- INFO functions --------------------------------
+    # -------------------------- INFO functions -------------------------------
     def _validateNormal(self):
         """ Should be overwritten in subclasses to
         return summary message for NORMAL EXECUTION. 
@@ -153,7 +152,7 @@ class ProtRelionClassify2D(ProtRelionBase, ProtClassify2D):
             methods += 'Output classes: %s' % self.getObjectTag('outputClasses')
         return [methods]
     
-    #--------------------------- UTILS functions --------------------------------------------
+    # -------------------------- UTILS functions ------------------------------
     def _updateParticle(self, item, row):
         item.setClassId(row.getValue(md.RLN_PARTICLE_CLASS))
         item.setTransform(rowToAlignment(row, em.ALIGN_2D))

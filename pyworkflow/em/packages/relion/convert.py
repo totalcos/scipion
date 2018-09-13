@@ -155,6 +155,10 @@ def getVersion():
     return ''
 
 
+def isVersion1():
+    return getVersion().startswith("1.")
+
+
 def isVersion2():
     return getVersion().startswith("2.")
 
