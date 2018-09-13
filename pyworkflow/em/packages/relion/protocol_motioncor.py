@@ -168,9 +168,10 @@ class ProtRelionMotioncor(ProtAlignMovies):
                                  '%s_input.star' % self._getMovieRoot(movie))
         self.writeInputStar(inputStar, movie)
 
+        pwutils.makePath(movieFolder, 'output')
         # The program will run in the movie folder, so let's put
         # the input files relative to that
-        args = "--i %s --o ./ " % os.path.basename(inputStar)
+        args = "--i %s --o output/ " % os.path.basename(inputStar)
         args += "--use_motioncor2 --use_own --motioncor2_exe fake_mc2 "
         f0, fN = self._getRange(movie)
         args += "--first_frame_sum %d --last_frame_sum %d " % (f0, fN)
@@ -227,6 +228,8 @@ class ProtRelionMotioncor(ProtAlignMovies):
 
     def _getMovieShifts(self, movie):
         outStar = self._getMovieOutFn(movie, '.star')
+        first, last = self._getRange(movie)
+        n = last - first + 1
         # JMRT: I will parse the shift manually here from the .star file
         # to avoid the need to include new labels and depend on binding code
         # The following structure of the block is assumed:
@@ -258,6 +261,9 @@ class ProtRelionMotioncor(ProtAlignMovies):
                             parts = l.split()
                             xShifts.append(float(parts[1]))
                             yShifts.append(float(parts[2]))
+                            # Avoid reading values from non aligned frames
+                            if len(xShifts) == n:
+                                break
                     else:
                         if l == 'loop_':
                             found_loop = True
@@ -265,8 +271,7 @@ class ProtRelionMotioncor(ProtAlignMovies):
                     if l == 'data_global_shift':
                         found_data = True
 
-        # Let's remove the last -999.99 that is in the last frame of the star file right now
-        return xShifts[:-1], yShifts[:-1]
+        return xShifts, yShifts
 
     # --------------------------- UTILS functions -----------------------------
     def writeInputStar(self, starFn, *images):
@@ -280,7 +285,7 @@ class ProtRelionMotioncor(ProtAlignMovies):
 
     def _getMovieOutFn(self, movie, suffix):
         movieBase = pwutils.removeBaseExt(movie.getFileName()).replace('.', '_')
-        return os.path.join(self._getOutputMovieFolder(movie),
+        return os.path.join(self._getOutputMovieFolder(movie), 'output',
                             '%s%s' % (movieBase, suffix))
 
     def _getAbsPath(self, baseName):
@@ -328,7 +333,6 @@ class ProtRelionMotioncor(ProtAlignMovies):
                              outputFnCorrected=self._getPsdJpeg(movie))
 
         self._saveAlignmentPlots(movie)
-
 
     def _moveFiles(self, movie):
         # It really annoying that Relion default names changes if you use DW or not
