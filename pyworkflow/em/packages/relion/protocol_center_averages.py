@@ -53,13 +53,14 @@ class ProtRelionCenterAverages(em.ProtProcessParticles, ProtRelionBase):
 
     # --------------------------- STEPS functions ------------------------------
     def centerAveragesStep(self, averagesId):
-        fn = self._getStackFn()
+        inFn = self._getTmpPath('input_averages.mrcs')
+        outFn = self._getStackFn()
 
-        self.info("Writing averages to: %s" % fn)
-        self.inputAverages.get().writeStack(fn)
+        self.info("Writing input averages to: %s" % inFn)
+        self.inputAverages.get().writeStack(inFn)
 
         self.runJob(self._getProgram('relion_image_handler'),
-                    ' --shift_com --i %s ' % fn)
+                    ' --shift_com --i %s --o %s' % (inFn, outFn))
 
     def createOutputStep(self):
         inputSet = self.inputAverages.get()
@@ -83,7 +84,7 @@ class ProtRelionCenterAverages(em.ProtProcessParticles, ProtRelionBase):
         return []
 
     def _getStackFn(self):
-        return self._getPath('averages.mrcs')
+        return self._getPath('centered_averages.mrcs')
 
     def _setFileName(self, item, row):
         self._counter = getattr(self, '_counter', 0)

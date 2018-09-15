@@ -33,8 +33,10 @@ from pyworkflow.protocol.params import (PointerParam, FloatParam,
 from pyworkflow.em.data import Volume
 from pyworkflow.em.protocol import ProtInitialVolume
 from pyworkflow.em.packages.relion.protocol_base import ProtRelionBase
-from convert import V1_3, V1_4, V2_0, getVersion
+from convert import V1_3, V1_4, V2_0, getVersion, isVersion3
 from constants import ANGULAR_SAMPLING_LIST
+
+IS_V3 = isVersion3()
 
 
 class ProtRelionInitialModel(ProtInitialVolume, ProtRelionBase):
@@ -71,34 +73,23 @@ class ProtRelionInitialModel(ProtInitialVolume, ProtRelionBase):
         self.doCtfManualGroups = False
         self.realignMovieFrames = False
 
-
-    #--------------------------- DEFINE param functions --------------------------------------------   
+    # ------------------------- DEFINE param functions ------------------------
     def _defineParams(self, form):
         self.IS_3D = not self.IS_2D
         form.addSection(label='Input')
         form.addParam('doContinue', BooleanParam, default=False,
                       label='Continue from a previous run?',
                       help='If you set to *Yes*, you should select a previous'
-                           'run of type *%s* class and most of the input parameters'
-                           'will be taken from it.' % self.getClassName())
+                           'run of type *%s* class and most of the input '
+                           'parameters will be taken from it.'
+                           % self.getClassName())
         form.addParam('inputParticles', PointerParam,
                       pointerClass='SetOfParticles',
                       condition='not doContinue',
                       important=True,
                       label="Input particles",
                       help='Select the input images from the project.')
-        form.addParam('maskDiameterA', IntParam, default=-1,
-                      condition='not doContinue',
-                      label='Particle mask diameter (A)',
-                      help='The experimental images will be masked with a '
-                           'soft circular mask with this <diameter>. '
-                           'Make sure this diameter is not set too small '
-                           'because that may mask away part of the signal! If '
-                           'set to a value larger than the image size no '
-                           'masking will be performed.\n\n'
-                           'The same diameter will also be used for a '
-                           'spherical mask of the reference structures if no '
-                           'user-provided mask is specified.')
+
         form.addParam('continueRun', PointerParam,
                       pointerClass=self.getClassName(),
                       condition='doContinue', allowsNull=True,
@@ -114,18 +105,19 @@ class ProtRelionInitialModel(ProtInitialVolume, ProtRelionBase):
 
         self.addSymmetry(form)
 
-        form.addSection(label='CTF')
-        form.addParam('continueMsg', LabelParam, default=True,
+        group = form.addGroup('CTF')
+
+        group.addParam('continueMsg', LabelParam, default=True,
                       condition='doContinue',
                       label='CTF parameters are not available in continue mode')
-        form.addParam('doCTF', BooleanParam, default=True,
+        group.addParam('doCTF', BooleanParam, default=True,
                       label='Do CTF-correction?', condition='not doContinue',
                       help='If set to Yes, CTFs will be corrected inside the '
                            'MAP refinement. The resulting algorithm '
                            'intrinsically implements the optimal linear, or '
                            'Wiener filter. Note that input particles should '
                            'contains CTF parameters.')
-        form.addParam('haveDataBeenPhaseFlipped', LabelParam,
+        group.addParam('haveDataBeenPhaseFlipped', LabelParam,
                       condition='not doContinue',
                       label='Have data been phase-flipped?      '
                             '(Don\'t answer, see help)',
@@ -138,7 +130,7 @@ class ProtRelionInitialModel(ProtInitialVolume, ProtRelionBase):
                            'RELION, as this can be done inside the internal\n'
                            'CTF-correction. However, if the phases have been '
                            'flipped, the program will handle it.')
-        form.addParam('ignoreCTFUntilFirstPeak', BooleanParam, default=False,
+        group.addParam('ignoreCTFUntilFirstPeak', BooleanParam, default=False,
                       expertLevel=LEVEL_ADVANCED,
                       label='Ignore CTFs until first peak?',
                       condition='not doContinue',
@@ -151,32 +143,78 @@ class ProtRelionInitialModel(ProtInitialVolume, ProtRelionBase):
                            'results. Therefore, this option is not generally '
                            'recommended.')
 
+        form.addSection('Optimisation')
+        if IS_V3:
+            form.addParam('numberOfClasses', IntParam, default=1,
+                          label='Number of classes',
+                          help='The number of classes (K) for a multi-reference '
+                               'ab initio SGD refinement. These classes will be '
+                               'made in an unsupervised manner, starting from a '
+                               'single reference in the initial iterations of '
+                               'the SGD, and the references will become '
+                               'increasingly dissimilar during the in between '
+                               'iterations.')
+
+        form.addParam('maskDiameterA', IntParam, default=-1,
+                      condition='not doContinue',
+                      label='Particle mask diameter (A)',
+                      help='The experimental images will be masked with a '
+                           'soft circular mask with this <diameter>. '
+                           'Make sure this diameter is not set too small '
+                           'because that may mask away part of the signal! If '
+                           'set to a value larger than the image size no '
+                           'masking will be performed.\n\n'
+                           'The same diameter will also be used for a '
+                           'spherical mask of the reference structures if no '
+                           'user-provided mask is specified.')
+
+        if IS_V3:
+            form.addParam('doFlattenSolvent', BooleanParam, default=True,
+                          label='Flatten and enforce non-negative solvent?',
+                          help='If set to Yes, the job will apply a spherical '
+                               'mask and enforce all values in the reference '
+                               'to be non-negative.')
+
+        form.addParam('symmetryGroup', StringParam, default='c1',
+                      label="Symmetry",
+                      help='SGD sometimes works better in C1. If you make an '
+                           'initial model in C1 but want to run Class3D/Refine3D '
+                           'with a higher point group symmetry, the reference model '
+                           'must be rotated to conform the symmetry convention. '
+                           'You can do this by the relion_align_symmetry command.')
+
+        group = form.addGroup('Sampling')
+        group.addParam('angularSamplingDeg', EnumParam, default=2,
+                      choices=ANGULAR_SAMPLING_LIST,
+                      label='Angular sampling interval (deg)',
+                      help='There are only a few discrete angular samplings'
+                           ' possible because we use the HealPix library to'
+                           ' generate the sampling of the first two Euler '
+                           'angles on the sphere. The samplings are '
+                           'approximate numbers and vary slightly over '
+                           'the sphere.')
+        group.addParam('offsetSearchRangePix', FloatParam, default=5,
+                      label='Offset search range (pix)',
+                      help='Probabilities will be calculated only for '
+                           'translations in a circle with this radius (in '
+                           'pixels). The center of this circle changes at '
+                           'every iteration and is placed at the optimal '
+                           'translation for each image in the previous '
+                           'iteration.')
+        group.addParam('offsetSearchStepPix', FloatParam, default=1.0,
+                      label='Offset search step (pix)',
+                      help='Translations will be sampled with this step-size '
+                           '(in pixels). Translational sampling is also done '
+                           'using the adaptive approach. Therefore, if '
+                           'adaptive=1, the translations will first be '
+                           'evaluated on a 2x coarser grid.')
+
         form.addSection(label='SGD')
-        form.addParam('numberOfIterations', IntParam, default=1,
-                      label='Number of iterations',
-                      help='Number of iterations to be performed. '
-                           'Often 1 or 2 iterations with approximately '
-                           'ten thousand particles, or 5-10 iterations '
-                           'with several thousand particles is enough.')
-        form.addParam('sgdSubsetSize', IntParam, default=200,
-                      label='SGD subset size',
-                      help='How many particles will be processed for each '
-                           'SGD step. Often 200 seems to work well.')
-        form.addParam('writeSubsets', IntParam, default=10,
-                      expertLevel=LEVEL_ADVANCED,
-                      label='Write-out frequency subsets',
-                      help='Every how many subsets do you want to write the '
-                           'model to disk. Negative value means only write '
-                           'out model after entire iteration.')
-        form.addParam('sgdResLimit', IntParam, default=20,
-                      label='Limit resolution SGD to (A)',
-                      help='If set to a positive number, then the SGD will '
-                           'be done only including the Fourier components '
-                           'up to this resolution (in Angstroms). This is '
-                           'essential in SGD, as there is very little '
-                           'regularisation, i.e. overfitting will start '
-                           'to happen very quickly. Values in the range '
-                           'of 15-30 Angstroms have proven useful.')
+        if IS_V3:
+            self._defineSGD3(form)
+        else:
+            self._defineSGD2(form)
+
         form.addParam('sgdNoiseVar', IntParam, default=-1,
                       expertLevel=LEVEL_ADVANCED,
                       label='SGD increased noise variance half-life',
@@ -191,32 +229,6 @@ class ProtRelionInitialModel(ProtInitialVolume, ProtRelionBase):
                            'values around 1000 have found to be useful. '
                            'Change the factor of eight with the additional '
                            'argument *--sgd_sigma2fudge_ini*')
-
-        form.addSection('Sampling')
-        form.addParam('angularSamplingDeg', EnumParam, default=2,
-                      choices=ANGULAR_SAMPLING_LIST,
-                      label='Angular sampling interval (deg)',
-                      help='There are only a few discrete angular samplings'
-                           ' possible because we use the HealPix library to'
-                           ' generate the sampling of the first two Euler '
-                           'angles on the sphere. The samplings are '
-                           'approximate numbers and vary slightly over '
-                           'the sphere.')
-        form.addParam('offsetSearchRangePix', FloatParam, default=5,
-                      label='Offset search range (pix)',
-                      help='Probabilities will be calculated only for '
-                           'translations in a circle with this radius (in '
-                           'pixels). The center of this circle changes at '
-                           'every iteration and is placed at the optimal '
-                           'translation for each image in the previous '
-                           'iteration.')
-        form.addParam('offsetSearchStepPix', FloatParam, default=1.0,
-                      label='Offset search step (pix)',
-                      help='Translations will be sampled with this step-size '
-                           '(in pixels). Translational sampling is also done '
-                           'using the adaptive approach. Therefore, if '
-                           'adaptive=1, the translations will first be '
-                           'evaluated on a 2x coarser grid.')
 
         form.addSection('Additional')
         form.addParam('useParallelDisk', BooleanParam, default=True,
@@ -326,46 +338,130 @@ class ProtRelionInitialModel(ProtInitialVolume, ProtRelionBase):
 
         form.addParallelSection(threads=1, mpi=3)
 
+    def _defineSGD2(self, form):
+        """ Define SGD parameters for Relion version 2. """
+        form.addParam('numberOfIterations', IntParam, default=1,
+                      label='Number of iterations',
+                      help='Number of iterations to be performed. '
+                           'Often 1 or 2 iterations with approximately '
+                           'ten thousand particles, or 5-10 iterations '
+                           'with several thousand particles is enough.')
+        form.addParam('sgdSubsetSize', IntParam, default=200,
+                      label='SGD subset size',
+                      help='How many particles will be processed for each '
+                           'SGD step. Often 200 seems to work well.')
+        form.addParam('writeSubsets', IntParam, default=10,
+                      expertLevel=LEVEL_ADVANCED,
+                      label='Write-out frequency subsets',
+                      help='Every how many subsets do you want to write the '
+                           'model to disk. Negative value means only write '
+                           'out model after entire iteration.')
+        form.addParam('sgdResLimit', IntParam, default=20,
+                      label='Limit resolution SGD to (A)',
+                      help='If set to a positive number, then the SGD will '
+                           'be done only including the Fourier components '
+                           'up to this resolution (in Angstroms). This is '
+                           'essential in SGD, as there is very little '
+                           'regularisation, i.e. overfitting will start '
+                           'to happen very quickly. Values in the range '
+                           'of 15-30 Angstroms have proven useful.')
+
+    def _defineSGD3(self, form):
+        """ Define SGD parameters for Relion version 3. """
+        group = form.addGroup('Iterations')
+        group.addParam('numberOfIterInitial', IntParam, default=50,
+                       label='Number of initial iterations',
+                       help='Number of initial SGD iterations, at which the '
+                            'initial resolution cutoff and the initial subset '
+                            'size will be used, and multiple references are '
+                            'kept the same. 50 seems to work well in many '
+                            'cases. Increase if the correct solution is not '
+                            'found.')
+        group.addParam('numberOfIterInBetween', IntParam, default=200,
+                       label='Number of in-between iterations',
+                       help='Number of SGD iterations between the initial and '
+                            'final ones. During these in-between iterations, '
+                            'the resolution is linearly increased, together '
+                            'with the mini-batch or subset size. In case of a '
+                            'multi-class refinement, the different references '
+                            'are also increasingly left to become dissimilar. '
+                            '200 seems to work well in many cases. Increase '
+                            'if multiple references have trouble separating, '
+                            'or the correct solution is not found.')
+        group.addParam('numberOfIterFinal', IntParam, default=50,
+                       label='Number of final iterations',
+                       help='Number of final SGD iterations, at which the '
+                            'final resolution cutoff and the final subset '
+                            'size will be used, and multiple references are '
+                            'left dissimilar. 50 seems to work well in many '
+                            'cases. Perhaps increase when multiple reference '
+                            'have trouble separating.')
+        form.addParam('writeIter', IntParam, default=10,
+                      expertLevel=LEVEL_ADVANCED,
+                      label='Write-out frequency (iter)',
+                      help='Every how many iterations do you want to write the '
+                           'model to disk. Negative value means only write '
+                           'out model after entire iteration.')
+
+        line = form.addLine('Resolution (A)',
+                            help='This is the resolution cutoff (in A) that '
+                                 'will be applied during the initial and final '
+                                 'SGD iterations. 35A and 15A respectively '
+                                 'seems to work well in many cases.')
+        line.addParam('initialRes', IntParam, default=35, label='Initial')
+        line.addParam('finalRes', IntParam, default=15, label='Final')
+
+        line = form.addLine('Mini-batch size',
+                            help='')
+        line.addParam('initialBatch', IntParam, default=100, label='Initial')
+        line.addParam('finalBatch', IntParam, default=500, label='Final')
+
     def addSymmetry(self, container):
-        container.addParam('symmetryGroup', StringParam, default='c1',
-                           label="Symmetry",
-                           help='If the molecule is asymmetric, set Symmetry group '
-                                'to C1. Note their are multiple possibilities for '
-                                'icosahedral symmetry: \n'
-                                '* I1: No-Crowther 222 (standard in Heymann,Chagoyen '
-                                '& Belnap, JSB, 151 (2005) 196-207)               \n'
-                                '* I2: Crowther 222                                 \n'
-                                '* I3: 52-setting (as used in SPIDER?)              \n'
-                                '* I4: A different 52 setting                       \n'
-                                'The command *relion_refine --sym D2 '
-                                '--print_symmetry_ops* prints a list of all symmetry '
-                                'operators for symmetry group D2. RELION uses '
-                                'XMIPP\'s libraries for symmetry operations. '
-                                'Therefore, look at the XMIPP Wiki for more details:'
-                                ' http://xmipp.cnb.csic.es/twiki/bin/view/Xmipp/'
-                                'WebHome?topic=Symmetry')
+        pass
 
+    # -------------------------- INSERT steps functions -----------------------
 
-    #--------------------------- INSERT steps functions -------------------------------------
+    # -------------------------- STEPS functions ------------------------------
+    def _getVolumes(self):
+        """ Return the list of volumes generated.
+        The number of volumes in the list will be equal to
+        the number of classes requested by the user in the protocol. """
+        # Provide 1 as default value for making it backward compatible
+        k = self.getAttributeValue('numberOfClasses', 1)
+        pixelSize = self._getInputParticles().getSamplingRate()
+        volumes = []
 
-    #--------------------------- STEPS functions --------------------------------------------
+        for i in range(1, k+1):
+            vol = Volume(self._getExtraPath('relion_it%03d_class001.mrc')
+                            % self._lastIter())
+            vol.setSamplingRate(pixelSize)
+            volumes.append(vol)
+
+        return volumes
+
     def createOutputStep(self):
         imgSet = self._getInputParticles()
-        vol = Volume()
-        fnVol = self._getExtraPath('relion_it%03d_class001.mrc') % self._lastIter()
-        vol.setFileName(fnVol)
-        vol.setSamplingRate(imgSet.getSamplingRate())
+        volumes = self._getVolumes()
 
         outImgSet = self._createSetOfParticles()
         outImgSet.copyInfo(imgSet)
         self._fillDataFromIter(outImgSet, self._lastIter())
 
-        self._defineOutputs(outputVolume=vol)
-        self._defineSourceRelation(self.inputParticles, vol)
+        if len(volumes) > 1:
+            output = self._createSetOfVolumes()
+            output.setSamplingRate(imgSet.getSamplingRate())
+            for vol in volumes:
+                output.append(vol)
+            self._defineOutputs(outputVolumes=output)
+        else:
+            output = volumes[0]
+            self._defineOutputs(outputVolume=output)
+
+        self._defineSourceRelation(self.inputParticles, output)
         self._defineOutputs(outputParticles=outImgSet)
         self._defineTransformRelation(self.inputParticles, outImgSet)
     
-    #--------------------------- INFO functions -------------------------------------------- 
+    # -------------------------- INFO functions -------------------------------
     def _validateNormal(self):
         """ Should be overwritten in subclasses to
         return summary message for NORMAL EXECUTION.
@@ -412,13 +508,11 @@ class ProtRelionInitialModel(ProtInitialVolume, ProtRelionBase):
         summary.append("Continue from iteration %01d" % self._getContinueIter())
         return summary
 
-
-    #--------------------------- UTILS functions --------------------------------------------
+    # -------------------------- UTILS functions ------------------------------
     def _setBasicArgs(self, args):
         """ Return a dictionary with basic arguments. """
         args.update({'--o': self._getExtraPath('relion'),
-                     '--oversampling': '1',
-                     '--iter': self._getnumberOfIters()
+                     '--oversampling': '1'
                      })
 
         if not self.doContinue:
@@ -429,9 +523,25 @@ class ProtRelionInitialModel(ProtInitialVolume, ProtRelionBase):
 
     def _setSGDArgs(self, args):
         args['--sgd'] = ''
-        args['--subset_size'] = self.sgdSubsetSize.get()
-        args['--strict_highres_sgd'] = self.sgdResLimit.get()
-        args['--write_subsets'] = self.writeSubsets.get()
+
+        if IS_V3:
+            args['--sgd_ini_iter'] = self.numberOfIterInitial.get()
+            args['--sgd_inbetween_iter'] = self.numberOfIterInBetween.get()
+            args['--sgd_fin_iter'] = self.numberOfIterFinal.get()
+            args['--sgd_write_iter'] = self.writeIter.get()
+            args['--sgd_ini_resol'] = self.initialRes.get()
+            args['--sgd_fin_resol'] = self.finalRes.get()
+            args['--sgd_ini_subset'] = self.initialBatch.get()
+            args['--sgd_fin_subset'] = self.finalBatch.get()
+            args['--K'] = self.numberOfClasses.get()
+
+            s = """ --flatten_solvent  --zero_mask  --dont_combine_weights_via_disc --pool 3 --pad 2
+            --particle_diameter 200 --oversampling 1 --healpix_order 1 --offset_range 6 --offset_step 4 --j 1
+            """
+        else:
+            args['--subset_size'] = self.sgdSubsetSize.get()
+            args['--strict_highres_sgd'] = self.sgdResLimit.get()
+            args['--write_subsets'] = self.writeSubsets.get()
 
         if not self.doContinue:
             args['--denovo_3dref'] = ''
