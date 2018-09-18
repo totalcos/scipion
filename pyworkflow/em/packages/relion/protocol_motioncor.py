@@ -91,16 +91,15 @@ class ProtRelionMotioncor(ProtAlignMovies):
                            "micrographs.")
 
         line = group.addLine('Number of patches',
-                            help='Number of patches to be used for patch based '
-                                 'alignment. Set to *0 0* to do only global motion '
-                                 'correction. \n')
+                            help='Number of patches (in X and Y direction) to '
+                                 'apply motion correction. \n')
         line.addParam('patchX', params.IntParam, default=1, label='X')
         line.addParam('patchY', params.IntParam, default=1, label='Y')
 
         group.addParam('groupFrames', params.IntParam, default=1,
                       label='Group frames',
-                      help="The B-factor that will be applied to the "
-                           "micrographs.")
+                      help="Average together this many frames before "
+                           "calculating the beam-induced shifts.")
 
         group.addParam('binFactor', params.FloatParam, default=1.,
                        label='Binning factor',
@@ -136,7 +135,7 @@ class ProtRelionMotioncor(ProtAlignMovies):
         form.addParam('extraParams', params.StringParam, default='',
                       expertLevel=cons.LEVEL_ADVANCED,
                       label='Additional parameters',
-                      help="Extra parameters for motioncorr (NOT motioncor2)")
+                      help="Extra parameters for Relion motion correction. ")
 
         form.addParam('doComputePSD', params.BooleanParam, default=False,
                       expertLevel=cons.LEVEL_ADVANCED,
@@ -157,13 +156,6 @@ class ProtRelionMotioncor(ProtAlignMovies):
 
     # --------------------------- STEPS functions -------------------------------
     def _processMovie(self, movie):
-        """ `which relion_run_motioncorr` --i Import/job001/movies.star
-        --o MotionCorr/job002/ --first_frame_sum 1 --last_frame_sum 0
-        --bin_factor 2 --bfactor 150
-        --angpix 0.98 --patch_x 1 --patch_y 1 --gainref gain.mrc
-        --gpu "0" --dose_weighting --voltage 300 --dose_per_frame 1
-        --preexposure 0
-        """
         movieFolder = self._getOutputMovieFolder(movie)
         inputStar = os.path.join(movieFolder,
                                  '%s_input.star' % self._getMovieRoot(movie))
@@ -173,7 +165,7 @@ class ProtRelionMotioncor(ProtAlignMovies):
         # The program will run in the movie folder, so let's put
         # the input files relative to that
         args = "--i %s --o output/ " % os.path.basename(inputStar)
-        args += "--use_motioncor2 --use_own --motioncor2_exe fake_mc2 "
+        args += "--use_own "
         f0, fN = self._getRange(movie)
         args += "--first_frame_sum %d --last_frame_sum %d " % (f0, fN)
         args += "--bin_factor %f --bfactor %d " % (self.binFactor, self.bfactor)
@@ -190,6 +182,9 @@ class ProtRelionMotioncor(ProtAlignMovies):
             args += "--voltage %d " % voltage
             args += "--dose_per_frame %f " % dose
             args += "--preexposure %f " % preExp
+
+        if self.extraParams.hasValue():
+            args += " " + self.extraParams.get()
 
         self.runJob("relion_run_motioncorr", args, cwd=movieFolder)
 
@@ -314,7 +309,7 @@ class ProtRelionMotioncor(ProtAlignMovies):
         Used by the relion implementation of motioncor.
         """
         with open(starFn, 'w') as f:
-            f.write("data_\nloop_\n_rlnMicrographMovieName\n")
+            f.write("\ndata_\nloop_\n_rlnMicrographMovieName\n")
             for img in images:
                 f.write("%s\n" % os.path.basename(img.getFileName()))
 
