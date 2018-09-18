@@ -94,10 +94,23 @@ class TestRelionMotioncor(BaseTest):
         self.assertEqual(nrShifts, aliFrames, "Number of shifts is not equal"
                                               " number of aligned frames.")
 
+    def test_cct_motioncor2_global(self):
+        prot = self.newProtocol(ProtRelionMotioncor,
+                                objLabel='cct (global)',
+                                patchX=1, patchY=1)
+        prot.inputMovies.set(self.protImport2.outputMovies)
+        self.launchProtocol(prot)
+
+        self._checkMicrographs(prot)
+        #FIXME: Check how to treat the aligment in Relion motioncor
+        # and how to check them
+        # self._checkAlignment(prot.outputMovies[1],
+        #                      (1, 7), [0, 0, 0, 0])
+
     def test_cct_motioncor2_patch(self):
         prot = self.newProtocol(ProtRelionMotioncor,
-                                objLabel='cct - motioncor2 test1 (patch-based)',
-                                patchX=2, patchY=2)
+                                objLabel='cct (patch-based)',
+                                patchX=3, patchY=3)
         prot.inputMovies.set(self.protImport2.outputMovies)
         self.launchProtocol(prot)
 
@@ -109,8 +122,8 @@ class TestRelionMotioncor(BaseTest):
 
     def test_qbeta_motioncor2_patch(self):
         prot = self.newProtocol(ProtRelionMotioncor,
-                                objLabel='qbeta - motioncor2 test2 (patch-based)',
-                                patchX=2, patchY=2,
+                                objLabel='qbeta (patch-based)',
+                                patchX=3, patchY=3,
                                 group=2)
         prot.inputMovies.set(self.protImport1.outputMovies)
         self.launchProtocol(prot)
@@ -123,8 +136,8 @@ class TestRelionMotioncor(BaseTest):
 
     def test_qbeta_motioncor2_sel(self):
         prot = self.newProtocol(ProtRelionMotioncor,
-                                objLabel='qbeta - motioncor2 test3 (frame range)',
-                                patchX=2, patchY=2,
+                                objLabel='qbeta (frame range)',
+                                patchX=1, patchY=1,
                                 sumFrame0=2,
                                 sumFrameN=6)
         prot.inputMovies.set(self.protImport1.outputMovies)
