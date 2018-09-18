@@ -1,9 +1,10 @@
 # **************************************************************************
 # *
-# * Authors:     Josue Gomez Blanco     (josue.gomez-blanco@mcgill.ca)
-# *              J.M. De la Rosa Trevin (jmdelarosa@cnb.csic.es)
+# * Authors:     Josue Gomez Blanco     (josue.gomez-blanco@mcgill.ca) [1]
+# *              J.M. De la Rosa Trevin (delarosatrevin@scilifelab.se) [2]
 # *
-# * Unidad de  Bioinformatica of Centro Nacional de Biotecnologia , CSIC
+# * [1] McGill University
+# * [2] SciLifeLab, Stockholm University
 # *
 # * This program is free software; you can redistribute it and/or modify
 # * it under the terms of the GNU General Public License as published by
@@ -27,11 +28,11 @@
 
 from pyworkflow.protocol.params import (PointerParam, FloatParam, FileParam,
                                         BooleanParam, IntParam, LEVEL_ADVANCED)
-from pyworkflow.em.data import Volume, VolumeMask
+from pyworkflow.em.data import Volume
 from pyworkflow.em.protocol import ProtAnalysis3D, ImageHandler
 import pyworkflow.em.metadata as md
 from pyworkflow.utils import exists
-import pyworkflow.utils.path as putils
+from convert import isVersion3
 
 
 class ProtRelionPostprocess(ProtAnalysis3D):
@@ -47,6 +48,7 @@ class ProtRelionPostprocess(ProtAnalysis3D):
                   'finalVolume': self._getTmpPath("relion_class001.mrc"),
                   'half1': self._getTmpPath("relion_half1_class001_unfil.mrc"),
                   'half2': self._getTmpPath("relion_half2_class001_unfil.mrc"),
+                  'mask': self._getTmpPath("input_mask.mrc")
                   }
 
         self._updateFilenamesDict(myDict)
@@ -55,12 +57,18 @@ class ProtRelionPostprocess(ProtAnalysis3D):
     def _defineParams(self, form):
         
         form.addSection(label='Input')
-        form.addParam('protRefine', PointerParam,
-                      pointerClass="ProtRefine3D",
+        form.addParam('protRefine', PointerParam, pointerClass="ProtRefine3D",
                       label='Select a previous refinement protocol',
                       help='Select any previous refinement protocol to get the '
                            '3D half maps. Note that it is recommended that the '
                            'refinement protocol uses a gold-standard method.')
+        form.addParam('solventMask', PointerParam, pointerClass="VolumeMask",
+                      label='Solvent mask',
+                      help="Provide a soft mask where the protein is white "
+                           "(1) and the solvent is black (0). Often, the "
+                           "softer the mask the higher resolution estimates "
+                           "you will get. A soft edge of 5-10 pixels is often "
+                           "a good edge width.")
         form.addParam('calibratedPixelSize', FloatParam, default=0,
                       label='Calibrated pixel size (A)',
                       help="Provide the final, calibrated pixel size in "
@@ -71,38 +79,6 @@ class ProtRelionPostprocess(ProtAnalysis3D):
                            "The X-axis of the output FSC plot will use this "
                            "calibrated value.")
 
-        form.addSection(label='Masking')
-        form.addParam('doAutoMask', BooleanParam, default=True,
-                      label='Perform automated masking?',
-                      help='Perform automated masking, based on a density '
-                           'threshold')
-        form.addParam('initMaskThreshold', FloatParam, default=0.02,
-                      condition='doAutoMask',
-                      label='Initial binarization threshold',
-                      help='This threshold is used to make an initial binary '
-                           'mask from the average of the two unfiltered '
-                           'half-reconstructions. If you do not know what '
-                           'value to use, display one of the unfiltered '
-                           'half-maps in a 3D surface rendering viewer, that '
-                           'gives no noise peaks outside the reconstruction.')
-        form.addParam('extendInitMask', IntParam, default=3,
-                      label='Mask pixels extension (px)',
-                      condition='doAutoMask',
-                      help='The initial binary mask is extended this number '
-                           'of pixels in all directions.')
-        form.addParam('addMaskEdge', IntParam, default=6,
-                      label='add soft-edge width (px)', condition='doAutoMask',
-                      help='The extended binary mask is further extended with '
-                           'a raised-cosine soft edge of the specified width.')
-        form.addParam('mask', PointerParam, pointerClass='VolumeMask',
-                      label='Provide a mask', allowsNull=True,
-                      condition='not doAutoMask',
-                      help='Provide a soft mask where the protein is white (1) '
-                           'and the solvent is black (0). Often, the softer '
-                           'the mask the higher resolution estimates you will '
-                           'get. A soft edge of 5-10 pixels is often a good '
-                           'edge width.')
-        
         form.addSection(label='Sharpening')
         form.addParam('mtf', FileParam,
                       label='MTF-curve file',
@@ -175,64 +151,57 @@ class ProtRelionPostprocess(ProtAnalysis3D):
         objId = self.protRefine.get().getObjId()
         self._createFilenameTemplates()
         self._defineParamDict()
-        self._insertFunctionStep('initializeStep', objId)
+        self._insertFunctionStep('convertInputStep', objId)
         self._insertFunctionStep('postProcessStep', self.paramDict)
         self._insertFunctionStep('createOutputStep')
     
     # -------------------------- STEPS functions -------------------------------
-    def initializeStep(self, protId):
+    def convertInputStep(self, protId):
         protRef = self.protRefine.get()
         protClassName = protRef.getClassName()
+
+        # FIXME: JMRT I think this a dirty hack to plugin other refinement output here
+        # I would suggest better that we standardize the outputs: finalMap, half1 and half2
+        # in the base class ProtRefine3D and use the general approach here, instead of
+        # dealing with it here as it is now, that is not extensible.
+
         if protClassName.startswith('ProtRelionRefine3D'):
             protRef._createFilenameTemplates()
-            finalMap = protRef._getFileName("finalvolume",ref3d=1)
-            half1Map = protRef._getFileName("final_half1_volume",ref3d=1)
-            half2Map = protRef._getFileName("final_half2_volume",ref3d=1)
-            
-            putils.copyFile(self._getRelionMapFn(finalMap), self._getTmpPath())
-            putils.copyFile(self._getRelionMapFn(half1Map), self._getTmpPath())
-            putils.copyFile(self._getRelionMapFn(half2Map), self._getTmpPath())
+            final = protRef._getFileName("finalvolume", ref3d=1)
+            half1 = protRef._getFileName("final_half1_volume", ref3d=1)
+            half2 = protRef._getFileName("final_half2_volume", ref3d=1)
             
         elif protClassName.startswith('ProtFrealign'):
             protRef._createFilenameTemplates()
             lastIter = protRef._getLastIter()
-
-            finalMap = protRef._getFileName('iter_vol', iter=lastIter)
-            half1Map = protRef._getFileName('iter_vol1', iter=lastIter)
-            half2Map = protRef._getFileName('iter_vol2', iter=lastIter)
+            final = protRef._getFileName('iter_vol', iter=lastIter)
+            half1 = protRef._getFileName('iter_vol1', iter=lastIter)
+            half2 = protRef._getFileName('iter_vol2', iter=lastIter)
             
-            putils.copyFile(finalMap, self._getFileName("finalVolume"))
-            putils.copyFile(half1Map, self._getFileName("half1"))
-            putils.copyFile(half2Map, self._getFileName("half2"))
-
         elif protClassName.startswith('XmippProtProjMatch'):
             iterN = protRef.getLastIter()
             protRef._initialize()
-            vol = protRef._getFileName('reconstructedFileNamesIters',
+            final = protRef._getFileName('reconstructedFileNamesIters',
                                             iter=iterN, ref=1)
             half1 = protRef._getFileName('reconstructedFileNamesItersSplit1',
                                          iter=iterN, ref=1)
             half2 = protRef._getFileName('reconstructedFileNamesItersSplit2',
                                          iter=iterN, ref=1)
-            ih = ImageHandler()
-            ih.convert(vol, self._getFileName("finalVolume"))
-            ih.convert(half1, self._getFileName("half1"))
-            ih.convert(half2, self._getFileName("half2"))
-            
+
         elif protClassName.startswith('EmanProtRefine'):
             protRef._createFilenameTemplates()
             numRun = protRef._getRun()
             protRef._createIterTemplates(numRun)
             iterN = protRef._lastIter()
-            print "RUN ITER: ", numRun, iterN, protRef._iterTemplate
-            vol = protRef._getFileName("mapFull", run=numRun, iter=iterN)
+            final = protRef._getFileName("mapFull", run=numRun, iter=iterN)
             half1 = protRef._getFileName("mapEvenUnmasked", run=numRun)
             half2 = protRef._getFileName("mapOddUnmasked", run=numRun)
             
-            ih = ImageHandler()
-            ih.convert(vol, self._getFileName("finalVolume"))
-            ih.convert(half1, self._getFileName("half1"))
-            ih.convert(half2, self._getFileName("half2"))
+        ih = ImageHandler()
+        ih.convert(final, self._getFileName("finalVolume"))
+        ih.convert(half1, self._getFileName("half1"))
+        ih.convert(half2, self._getFileName("half2"))
+        ih.convert(self.solventMask.get(), self._getFileName('mask'))
     
     def postProcessStep(self, paramDict):
         params = ' '.join(['%s %s' % (k, str(v))
@@ -247,13 +216,6 @@ class ProtRelionPostprocess(ProtAnalysis3D):
         volume.setSamplingRate(pxSize)
         self._defineOutputs(outputVolume=volume)
         self._defineSourceRelation(vol, volume)
-
-        if self.doAutoMask:
-            mask = VolumeMask()
-            mask.setFileName(self._getExtraPath('postprocess_automask.mrc'))
-            mask.setSamplingRate(pxSize)
-            self._defineOutputs(outputMask=mask)
-            self._defineSourceRelation(vol, mask)
 
     # -------------------------- INFO functions --------------------------------
     def _validate(self):
@@ -296,20 +258,21 @@ class ProtRelionPostprocess(ProtAnalysis3D):
         cps = self.calibratedPixelSize.get()
         angpix = cps if cps > 0 else volume.getSamplingRate()
 
-        self.paramDict = {'--i': self._getTmpPath("relion"),
+        # It seems that in Relion3 now the input should be the map
+        # filename and not the prefix as before
+        if isVersion3():
+            inputFn = self._getFileName('half1')
+        else:
+            inputFn = self._getTmpPath("relion")
+
+        self.paramDict = {'--i': inputFn,
                           '--o': self._getExtraPath('postprocess'),
                           '--angpix': angpix,
                           # Expert params
                           '--filter_edge_width': self.filterEdgeWidth.get(),
                           '--randomize_at_fsc': self.randomizeAtFsc.get()
                           }
-        if self.doAutoMask:
-            self.paramDict['--auto_mask'] = ''
-            self.paramDict['--inimask_threshold'] = self.initMaskThreshold.get()
-            self.paramDict['--extend_inimask'] = self.extendInitMask.get()
-            self.paramDict['--width_mask_edge'] = self.addMaskEdge.get()
-        else:
-            self.paramDict['--mask'] = self.mask.get().getFileName()
+        self.paramDict['--mask'] = self._getFileName('mask')
 
         mtfFile = self.mtf.get()
         if mtfFile:

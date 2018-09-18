@@ -542,15 +542,16 @@ class TestRelionPostprocess(TestRelionBase):
         prot.inputParticles.set(self.importPartsFromScipion().outputParticles)
         
         protClassName = prot.getClassName()
+        outputVol = self.importVolume().outputVolume
         if protClassName.startswith('ProtRelionRefine3D'):
-            prot.referenceVolume.set(self.importVolume().outputVolume)
+            prot.referenceVolume.set(outputVol)
         elif protClassName.startswith('ProtFrealign'):
-            prot.input3DReference.set(self.importVolume().outputVolume)
+            prot.input3DReference.set(outputVol)
         elif protClassName.startswith('XmippProtProjMatch'):
-            prot.input3DReferences.set(self.importVolume().outputVolume)
+            prot.input3DReferences.set(outputVol)
         elif protClassName.startswith('EmanProtRefine'):
             pass
-        
+
         volume = em.Volume()
         volume.setFileName(prot._getExtraPath(volPatt))
         pxSize = prot.inputParticles.get().getSamplingRate()
@@ -561,7 +562,13 @@ class TestRelionPostprocess(TestRelionBase):
 
         prot.setStatus(STATUS_FINISHED)
         project._storeProtocol(prot)
-        return prot
+
+        # Create a mask protocol, because now it is not part of post-process
+        protMask = self.newProtocol(ProtRelionCreateMask3D)
+        protMask.inputVolume.set(outputVol)
+        self.launchProtocol(protMask)
+
+        return prot, protMask
     
     def _validations(self, vol, dims, pxSize, prot=""):
         self.assertIsNotNone(vol, "There was a problem with postprocess "
@@ -584,9 +591,9 @@ class TestRelionPostprocess(TestRelionBase):
                                      'relion_it025_half2_class001.mrc'))
         volPatt = 'relion_class001.mrc'
         
-        protRef = self._createRef3DProtBox("auto-refine",
-                                           ProtRelionRefine3D,
-                                           volPatt)
+        protRef, protMask = self._createRef3DProtBox("auto-refine",
+                                                     ProtRelionRefine3D,
+                                                     volPatt)
         
         copyFile(vol, protRef._getExtraPath(volPatt))
         copyFile(half1,
@@ -595,7 +602,8 @@ class TestRelionPostprocess(TestRelionBase):
                  protRef._getExtraPath('relion_half2_class001_unfil.mrc'))
 
         postProt = self.newProtocol(ProtRelionPostprocess,
-                                    protRefine=protRef)
+                                    protRefine=protRef,
+                                    solventMask=protMask.outputMask)
         postProt.setObjLabel('post process Auto-refine')
         
         self.launchProtocol(postProt)
@@ -612,7 +620,7 @@ class TestRelionPostprocess(TestRelionBase):
                                      'relion_it025_half2_class001.mrc'))
         volPatt = 'iter_002/volume_iter_002.mrc'
 
-        protRef = self._createRef3DProtBox("frealign", ProtFrealign, volPatt,
+        protRef, protMask  = self._createRef3DProtBox("frealign", ProtFrealign, volPatt,
                                            storeIter=True, iterN=2)
         makePath(join(protRef._getExtraPath(), 'iter_002'))
         
@@ -623,7 +631,8 @@ class TestRelionPostprocess(TestRelionBase):
                  protRef._getExtraPath('iter_002/volume_2_iter_002.mrc'))
 
         postProt = self.newProtocol(ProtRelionPostprocess,
-                                    protRefine=protRef)
+                                    protRefine=protRef,
+                                    solventMask=protMask.outputMask)
         postProt.setObjLabel('post process frealign')
         self.launchProtocol(postProt)
         self._validations(postProt.outputVolume, 60, 3, "Frealign")
@@ -639,7 +648,7 @@ class TestRelionPostprocess(TestRelionBase):
                                      'relion_it025_half2_class001.mrc'))
         
         volPatt = 'iter_002/reconstruction_Ref3D_001.vol'
-        protRef = self._createRef3DProtBox("Proj Match", XmippProtProjMatch,
+        protRef, protMask  = self._createRef3DProtBox("Proj Match", XmippProtProjMatch,
                                            volPatt, storeIter=True, iterN=2)
         
         makePath(join(protRef._getExtraPath(), 'iter_002'))
@@ -659,7 +668,8 @@ class TestRelionPostprocess(TestRelionBase):
         ih.convert(ih.getVolFileName(half2), half2Xmipp)
 
         postProt = self.newProtocol(ProtRelionPostprocess,
-                                    protRefine=protRef)
+                                    protRefine=protRef,
+                                    solventMask=protMask.outputMask)
         postProt.setObjLabel('post process Xmipp Projection Matching')
         self.launchProtocol(postProt)
         self._validations(postProt.outputVolume, 60, 3, "Projection Matching")
@@ -676,7 +686,7 @@ class TestRelionPostprocess(TestRelionBase):
                                      'relion_it025_half2_class001.mrc'))
 
         volPatt = 'refine_01/threed_02.hdf'
-        protRef = self._createRef3DProtBox("Eman refine Easy",
+        protRef, protMask  = self._createRef3DProtBox("Eman refine Easy",
                                            EmanProtRefine, volPatt)
         makePath(join(protRef._getExtraPath(), 'refine_01'))
         protRef._createFilenameTemplates()
@@ -691,7 +701,8 @@ class TestRelionPostprocess(TestRelionBase):
         convertImage(half2, half2Eman)
 
         postProt = self.newProtocol(ProtRelionPostprocess,
-                                    protRefine=protRef)
+                                    protRefine=protRef,
+                                    solventMask=protMask.outputMask)
         postProt.setObjLabel('post process Eman2 refine-easy')
         self.launchProtocol(postProt)
         self._validations(postProt.outputVolume, 60, 3, "Eman refine easy")
