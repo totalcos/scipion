@@ -36,6 +36,7 @@ from pyworkflow.protocol.constants import LEVEL_ADVANCED
 import pyworkflow.protocol.params as params
 from pyworkflow.viewer import (Viewer, ProtocolViewer, DESKTOP_TKINTER,
                                WEB_DJANGO)
+from pyworkflow.em.viewer import MicrographsView
 
 from protocol_classify2d import ProtRelionClassify2D
 from protocol_classify3d import ProtRelionClassify3D
@@ -46,6 +47,8 @@ from protocol_autopick import ProtRelionAutopick, ProtRelionAutopickFom
 from protocol_sort import ProtRelionSortParticles
 from protocol_initialmodel import ProtRelionInitialModel
 from protocol_localres import ProtRelionLocalRes
+from protocol_motioncor import ProtRelionMotioncor
+
 from convert import relionToLocation
 
 ITER_LAST = 0
@@ -1089,8 +1092,6 @@ class PostprocessViewer(ProtocolViewer):
             return 'log(Amplitudes) Intercept'
         
 
-
-
 class RelionAutopickViewerFOM(Viewer):
     """ Class to visualize Relion postprocess protocol """
     _targets = [ProtRelionAutopickFom]
@@ -1740,3 +1741,20 @@ class RelionLocalResViewer(ProtocolViewer):
         for step in range(0, numberOfColors):
             rangeList.append(round(minRes + step * inter, 2))
         return rangeList
+
+
+class RelionMotioncorViewer(Viewer):
+    """ Wrapper to visualize Relion micrographs after motioncor.
+    """
+    _environments = [DESKTOP_TKINTER, WEB_DJANGO]
+    _targets = [ProtRelionMotioncor]
+
+    def _visualize(self, obj, **kwargs):
+        micsView = MicrographsView(self._project, obj.outputMicrographs)
+        params = micsView.getViewParams()
+        # Add specific labels to be display
+        params[showj.VISIBLE] += (" _rlnAccumMotionTotal"
+                                  " _rlnAccumMotionEarly"
+                                  " _rlnAccumMotionLate ")
+
+        return [micsView]

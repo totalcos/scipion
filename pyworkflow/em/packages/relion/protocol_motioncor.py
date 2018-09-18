@@ -28,6 +28,7 @@ import os
 from itertools import izip
 from math import ceil
 
+import pyworkflow.object as pwobj
 import pyworkflow.protocol.params as params
 import pyworkflow.protocol.constants as cons
 import pyworkflow.utils as pwutils
@@ -225,6 +226,40 @@ class ProtRelionMotioncor(ProtAlignMovies):
 
     def _preprocessOutputMicrograph(self, mic, movie):
         self._setPlotInfo(movie, mic)
+        self._setMotionValues(movie, mic)
+
+    def _setMotionValues(self, movie, mic):
+        """ Parse motion values from the 'corrected_micrographs.star' file
+        generated for each movie. """
+        fn = os.path.join(self._getOutputMovieFolder(movie), 'output',
+                          'corrected_micrographs.star')
+        # FIXME: There are a few quick and dirty solutions here:
+        # 1) we are reading the star file by "hand"
+        # 2) assuming the data line always starts with 'output/',
+        #   since we use that folder as output
+        # 3) current implementation only works for a single item
+        #   so, a re-write is needed when processing in batch
+        #   and corrected_micrographs.star file can contain more rows.
+        # Assume file format is the following:
+        #
+        # data_
+        #
+        # loop_
+        # _rlnMicrographName  # 1
+        # _rlnMicrographMetadata  # 2
+        # _rlnAccumMotionTotal  # 3
+        # _rlnAccumMotionEarly  # 4
+        # _rlnAccumMotionLate  # 5
+        # output / cct_1.mrc output / cct_1.star   5.347620 4.311143 1.036477
+        with open(fn) as f:
+            for line in f:
+                l = line.strip()
+                if l.startswith('output/'):
+                    parts = l.split()
+                    mic._rlnAccumMotionTotal = pwobj.Float(parts[2])
+                    mic._rlnAccumMotionEarly = pwobj.Float(parts[3])
+                    mic._rlnAccumMotionLate = pwobj.Float(parts[4])
+                    break
 
     def _getMovieShifts(self, movie):
         outStar = self._getMovieOutFn(movie, '.star')
