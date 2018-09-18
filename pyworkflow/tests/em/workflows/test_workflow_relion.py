@@ -194,8 +194,8 @@ class TestWorkflowRelionPick(TestWorkflow):
         protPick = self.newProtocol(ProtRelionAutopickLoG,
                                     objLabel='autopick LoG',
                                     boxSize=60,
-                                    minDiameter=60,
-                                    maxDiameter=100)
+                                    minDiameter=30,
+                                    maxDiameter=50)
         protPick.inputMicrographs.set(protCropMics.outputMicrographs)
         self._launchPick(protPick)
 
