@@ -57,6 +57,7 @@ from protocol_export_particles import ProtRelionExportParticles
 # Relion 3.0 new protocols
 from protocol_motioncor import ProtRelionMotioncor
 from protocol_autopick_v3 import ProtRelionAutopickLoG
+from protocol_ctf_refinement import ProtRelionCtfRefinement
 
 # Wizards
 from wizard import *
