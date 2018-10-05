@@ -147,7 +147,7 @@ hdf5 = env.addLibrary(
 
 python = env.addLibrary(
     'python',
-    tar='Python-2.7.8.tgz',
+    tar='Python-2.7.14.tgz',
     targets=[env.getLib('python2.7'), env.getBin('python')],
     flags=['--enable-shared'],
     deps=[sqlite, tk, zlib])
@@ -194,10 +194,8 @@ arpack = env.addLibrary(
     default=False)
 # See http://modb.oce.ulg.ac.be/mediawiki/index.php/How_to_compile_ARPACK
 
-if get('CUDA'):
-    opencvFlags = ['-DWITH_FFMPEG=OFF -DWITH_CUDA:BOOL=ON']
-else:
-    opencvFlags = ['-DWITH_FFMPEG=OFF -DWITH_CUDA:BOOL=OFF']
+cudaStr = 'ON' if get('CUDA') else 'OFF'
+opencvFlags = ['-DWITH_FFMPEG=OFF -DWITH_CUDA:BOOL=' + cudaStr + ' -DWITH_LIBV4L=ON -DWITH_V4L=OFF']
 opencv = env.addLibrary(
     'opencv',
     tar='opencv-2.4.13.tgz',
@@ -268,6 +266,11 @@ matplotlib = env.addModule(
     targets=['matplotlib-1.3.1*'],
     numpyIncludes=True,
     deps=[numpy, png, dateutil, pyparsing])
+
+poster = env.addModule(
+    'poster',
+    targets=['poster-0.8.1*'],
+    tar='poster-0.8.1.tgz')
 
 psutil = env.addModule(
     'psutil',
@@ -390,6 +393,10 @@ env.addPackage('ctffind4', version='4.1.5',
 env.addPackage('ctffind4', version='4.1.8',
                tar='ctffind_V4.1.8.tgz')
 
+env.addPackage('ctffind4', version='4.1.10',
+               tar='ctffind4-4.1.10.tgz')
+
+
 env.addPackage('summovie', version='1.0.2',
                tar='summovie_1.0.2.tgz')
 
@@ -417,10 +424,6 @@ relion_commands = [('./INSTALL.sh -j %d' % env.getProcessors(),
                           ['relion_build.log',
                            'bin/relion_refine'])]
 
-env.addPackage('relion', version='1.3',
-               tar='relion-1.3.tgz',
-               commands=relion_commands)
-
 env.addPackage('relion', version='1.4',
                tar='relion-1.4.tgz',
                commands=relion_commands)
@@ -442,11 +445,20 @@ env.addPackage('relion', version='2.0',
                updateCuda=True,
                vars=relion_vars)
 
+env.addPackage('relion', version='2.1',
+              tar='relion-2.1.tgz',
+              commands=relion2_commands,
+              updateCuda=True,
+              vars=relion_vars)
+
 env.addPackage('localrec', version='1.1.0',
                tar='localrec-1.1.0.tgz')
 
 env.addPackage('localrec', version='1.2.0',
                tar='localrec-1.2.0.tgz')
+
+env.addPackage('locscale', version='0.1',
+               tar='locscale-0.1.tgz')
 
 env.addPackage('resmap', version='1.1.5s2',
                tar='resmap-1.1.5-s2.tgz',
@@ -459,14 +471,17 @@ env.addPackage('spider', version='21.13',
 env.addPackage('motioncorr', version='2.1',
                tar='motioncorr_v2.1.tgz')
 
-env.addPackage('motioncor2', version='16.03.16',
-               tar='motioncor2_03162016.tgz')
-
-env.addPackage('motioncor2', version='16.10.19',
-               tar='motioncor2_10192016.tgz')
-
 env.addPackage('motioncor2', version='17.01.30',
                tar='motioncor2_01302017.tgz')
+
+env.addPackage('motioncor2', version='1.0.2',
+               tar='motioncor2-1.0.2.tgz')
+
+env.addPackage('motioncor2', version='1.0.5',
+               tar='motioncor2-1.0.5.tgz')
+
+env.addPackage('motioncor2', version='1.1.0',
+               tar='motioncor2-1.1.0.tgz')
 
 env.addPackage('simple', version='2.1',
                tar='simple2.tgz')

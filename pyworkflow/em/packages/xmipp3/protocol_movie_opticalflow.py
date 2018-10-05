@@ -1,6 +1,6 @@
 # ******************************************************************************
 # *
-# * Authors:     Josue Gomez Blanco (jgomez@cnb.csic.es)
+# * Authors:     Josue Gomez Blanco (josue.gomez-blanco@mcgill.ca)
 # *              Roberto Marabini (roberto@cnb.csic.es)
 # *              J.M. de la Rosa Trevin (jmdelarosa@cnb.csic.es)
 # *              Vahid Abrishami (vabrisahmi@cnb.csic.es)
@@ -53,18 +53,17 @@ class XmippProtOFAlignment(ProtAlignMovies):
     _lastUpdateVersion = VERSION_1_1
     CONVERT_TO_MRC = 'mrcs'
 
-
     #--------------------------- DEFINE param functions ------------------------
     def _defineAlignmentParams(self, form):
         ProtAlignMovies._defineAlignmentParams(self, form)
         form.addSection("Aditional Parameters")
         # GROUP GPU PARAMETERS
-        group = form.addGroup('GPU')
-        group.addParam('doGPU', params.BooleanParam, default=False,
+        #group = form.addGroup('GPU')
+        form.addHidden(params.USE_GPU, params.BooleanParam, default=False,
                        label="Use GPU (vs CPU)",
                        help="Set to true if you want the GPU implementation of "
                            "Optical Flow")
-        group.addParam('GPUCore', params.IntParam, default=0,
+        form.addHidden(params.GPU_LIST, params.StringParam, default=0,
                        expertLevel=params.LEVEL_ADVANCED,
                        label="Choose GPU core",
                        help="GPU may have several cores. Set it to zero if you "
@@ -135,12 +134,12 @@ class XmippProtOFAlignment(ProtAlignMovies):
         # to be used for alignment and sum
         x, y, n = movie.getDim()
         a0, aN = self._getFrameRange(n, 'align')
-        gpuId = self.GPUCore.get()
+        gpuId = self.gpuList.get()
         inputMd = self._getFnInMovieFolder(movie, 'input_movie.xmd')
         writeMovieMd(movie, inputMd, a0, aN, useAlignment=self.useAlignment)
         
         args = '-i %s ' % inputMd
-        args += '-o %s ' % self._getOutputShifts(movie)
+        args += '-o "%s" ' % self._getOutputShifts(movie)
         args += ' --frameRange %d %d ' % (0, aN - a0)
 
         if dark:
@@ -152,16 +151,16 @@ class XmippProtOFAlignment(ProtAlignMovies):
         groupSize = self.groupSize.get()
         args += ' --winSize %(winSize)d --groupSize %(groupSize)d ' % locals()
         
-        if self.doGPU:
+        if self.useGpu:
             program = 'xmipp_movie_optical_alignment_gpu'
-            args += '--gpu %d ' % gpuId
+            args += '--gpu %s ' % gpuId
         else:
             program = 'xmipp_movie_optical_alignment_cpu'
 
         # We should save the movie either if the user selected it (default)
         # or if the PSD is going to be computed
         if self.doSaveAveMic or self.doComputePSD:
-            args += '--oavg %s ' % outMicFn
+            args += '--oavg "%s" ' % outMicFn
 
         if self.doComputePSD:
             args  += '--oavgInitial %s ' % aveMic
@@ -237,7 +236,7 @@ class XmippProtOFAlignment(ProtAlignMovies):
             inputSet = self.inputMovies.get()
             movie = inputSet.getFirstItem()
             if (not movie.hasAlignment()) and self.useAlignment:
-                errors.append("Your movies has not alignment. Please, set *No* "
+                errors.append("Your movies have no alignment. Please, set *No* "
                               "the parameter _Use previous movie alignment to SUM"
                               " frames?_")
 
@@ -248,7 +247,7 @@ class XmippProtOFAlignment(ProtAlignMovies):
                     errors.append('Dose per frame for input movies is 0 or not '
                                   'set. You cannot apply dose filter.')
 
-        if self.numberOfThreads > 1 and self.doGPU:
+        if self.numberOfThreads > 1 and self.useGpu:
             errors.append("GPU and Parallelization can not be used together")
 
         return errors
@@ -258,13 +257,12 @@ class XmippProtOFAlignment(ProtAlignMovies):
 
     def _methods(self):
         methods = []
-        if self.doGPU:
-            gpuId = self.GPUCore.get()
         methods.append('Aligning method: Optical Flow')
-        methods.append('- Used a window size of: *%d*' % self.winSize.get())
+        methods.append('- Used a window size of: *%d*' % self.winSize)
         methods.append('- Used a pyramid size of: *6*')
-        if self.doGPU:
-            methods.append('- Used GPU *%d* for processing' % gpuId)
+
+        if self.useGpu:
+            methods.append('- Used GPU *%s* for processing' % self.gpuList)
 
         return methods
     
@@ -353,6 +351,7 @@ class XmippProtOFAlignment(ProtAlignMovies):
         meanX, meanY = self._loadMeanShifts(movie)
         plotter = createAlignmentPlot(meanX, meanY)
         plotter.savefig(self._getPlotCart(movie))
+        plotter.close()
 
     def _createOutputMicrographs(self):
         createWeighted = self._createOutputWeightedMicrographs()
@@ -381,7 +380,7 @@ def showCartesianShiftsPlot(inputSet, itemId):
         plotter = createAlignmentPlot(meanX, meanY)
         plotter.show()
     else:
-        print "This items does not have OF alignment set. "
+        print "These items do not have OF alignment set. "
 
 
 ProjectWindow.registerObjectCommand(OBJCMD_MOVIE_ALIGNCARTESIAN,

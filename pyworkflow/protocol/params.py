@@ -67,6 +67,9 @@ class FormElement(OrderedObject):
     
     def getLabel(self):
         return self.label.get()
+
+    def getHelp(self):
+        return self.help.get()
     
     def config(self, **kwargs):
         """ Configure the object and set attributes
@@ -207,7 +210,14 @@ class Form(object):
         self.lastSection = Section(self, label=label, **kwargs)
         self._sectionList.append(self.lastSection)
         return self.lastSection
-    
+
+    def getSection(self, label):
+        """ get section by label from _sectionList"""
+        for s in self._sectionList:
+            if s.label == label:
+                return s
+        return
+
     def addGroup(self, *args, **kwargs):
         return self.lastSection.addGroup(*args, **kwargs)
     

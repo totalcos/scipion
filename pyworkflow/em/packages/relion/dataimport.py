@@ -34,7 +34,7 @@ from pyworkflow.em.data import Micrograph
 import pyworkflow.em.metadata as md
 from pyworkflow.em.packages.relion.convert import relionToLocation, readCoordinates
 from pyworkflow.utils.path import findRootFrom
-from pyworkflow.em.packages.relion.convert import ( rowToCoordinate)
+from pyworkflow.em.packages.relion.convert import rowToCoordinate
 
 # import xmipp
 
@@ -87,10 +87,10 @@ class RelionImport():
 
     def _updateClass(self, item):
         classId = item.getObjId()
-        if  classId in self._classesDict:
+        if classId in self._classesDict:
             index, fn, row = self._classesDict[classId]
             if fn.endswith('.mrc'):
-                fn += ':mrc' # Specify that are volumes to read them properly in xmipp
+                fn += ':mrc'  # Specify that are volumes to read them properly in xmipp
             item.getRepresentative().setLocation(index, fn)
             item._rlnclassDistribution = Float(row.getValue('rlnClassDistribution'))
             item._rlnAccuracyRotations = Float(row.getValue('rlnAccuracyRotations'))
@@ -128,7 +128,7 @@ class RelionImport():
 
     #--------------------------- INFO functions -------------------------------------------- 
     def validateParticles(self):
-        """ Should be overriden in subclasses to 
+        """ Should be overwritten in subclasses to
         return summary message for NORMAL EXECUTION. 
         """
         errors = []
@@ -162,7 +162,6 @@ class RelionImport():
                 
         return result
 
-        
     def _findImagesPath(self, label, warnings=True):
 
         row = md.getFirstRow(self._starFile)
@@ -180,18 +179,17 @@ class RelionImport():
         if warnings and self._imgPath is None:
             self.protocol.warning("Binary data was not found from metadata: %s" % self._starFile)
 
-
-        if (self._starFile.endswith('_data.star') and 
+        if (self._starFile.endswith('_data.star') and
             self._getModelFile(self._starFile)):
             self._modelStarFile = self._getModelFile(self._starFile)
             modelRow = md.getFirstRow(self._modelStarFile)
             classDimensionality = modelRow.getValue('rlnReferenceDimensionality')
-
             self._optimiserFile = self._starFile.replace('_data.star', '_optimiser.star')
             if not exists(self._optimiserFile):
-                raise Exception("Missing required optimiser star file: %s" % self._optimiserFile)
-            optimiserRow = md.getFirstRow(self._optimiserFile)
-            autoRefine = optimiserRow.containsLabel('rlnModelStarFile2')
+                autoRefine = modelRow.getValue("rlnNrClasses") == 1
+            else:
+                optimiserRow = md.getFirstRow(self._optimiserFile)
+                autoRefine = optimiserRow.containsLabel('rlnModelStarFile2')
 
             self.alignType = ALIGN_PROJ
 
@@ -204,10 +202,19 @@ class RelionImport():
             else:
                 self._classesFunc = None
         else:
-            self.alignType = ALIGN_NONE
             self._classesFunc = None
             self._modelStarFile = None
             modelRow = None
+           
+            # Check if we have rot angle -> ALIGN_PROJ,
+            # if only psi angle -> ALIGN_2D
+            if row.containsLabel('rlnAngleRot') and row.getValue("rlnAngleRot") != 0.0:
+                self.alignType = ALIGN_PROJ
+            elif row.containsLabel('rlnAnglePsi') and row.getValue("rlnAnglePsi") != 0.0:
+                self.alignType = ALIGN_2D
+            else:
+                self.alignType = ALIGN_NONE
+
         # Check if the MetaData contains either MDL_MICROGRAPH_ID
         # or MDL_MICROGRAPH, this will be used when imported
         # particles to keep track of the particle's micrograph
@@ -217,7 +224,6 @@ class RelionImport():
         self.micDict = {}
 
         return row, modelRow
-
 
     def _preprocessImageRow(self, img, imgRow):
         from convert import setupCTF, copyOrLinkFileName
@@ -244,6 +250,7 @@ class RelionImport():
                 if micName is None:
                     micName = self.protocol._getExtraPath('fake_micrograph%6d' % micId)
                 mic.setFileName(micName)
+                mic.setMicName(os.path.basename(micName))
                 self.micSet.append(mic)
                 # Update dict with new Micrograph
                 self.micDict[micKey] = mic
@@ -261,7 +268,7 @@ class RelionImport():
             if img.hasCoordinate():
                 coord = img.getCoordinate()
                 coord.setMicId(micId)
-                coord.setMicName(micName)
+                coord.setMicName(os.path.basename(micName))
     
     def loadAcquisitionInfo(self):
         """ Return a dictionary with acquisition values and 
@@ -296,5 +303,3 @@ class RelionImport():
         for row in md.iterRows(fileName):
             coord = rowToCoordinate(row)
             addCoordinate(coord)
-
-            

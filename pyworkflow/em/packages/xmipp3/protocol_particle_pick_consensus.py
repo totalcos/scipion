@@ -30,7 +30,7 @@ import os
 from math import sqrt
 
 import pyworkflow.protocol.params as params
-from pyworkflow.em.protocol.protocol_particles import ProtParticlePicking
+from pyworkflow.em.protocol import ProtParticlePicking
 from pyworkflow.protocol.constants import *
 from pyworkflow.em.data import Coordinate
 
@@ -110,9 +110,9 @@ class XmippProtConsensusPicking(ProtParticlePicking):
         n=0
         for coordinates in self.inputCoordinates:
             coordArray = np.asarray([x.getPosition() 
-                                     for x in coordinates.get().iterCoordinates(micId)])
-            coordArray *= Tm[n]/Tm[0]
-            coords.append(coordArray)
+                                     for x in coordinates.get().iterCoordinates(micId)], dtype=float)
+            coordArray *= float(Tm[n])/float(Tm[0])
+            coords.append(np.asarray(coordArray,dtype=int))
             Ncoords += coordArray.shape[0]
             n+=1
         

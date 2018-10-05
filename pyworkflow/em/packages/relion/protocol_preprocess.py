@@ -1,6 +1,6 @@
 # **************************************************************************
 # *
-# * Authors:     Josue Gomez Blanco (jgomez@cnb.csic.es)
+# * Authors:     Josue Gomez Blanco (josue.gomez-blanco@mcgill.ca)
 # *
 # * Unidad de  Bioinformatica of Centro Nacional de Biotecnologia , CSIC
 # *
@@ -198,7 +198,7 @@ class ProtRelionPreprocessParticles(ProtProcessParticles, ProtRelionBase):
     
     # --------------------------- INFO functions -------------------------------
     def _validate(self):
-        """ Should be overriden in subclasses to 
+        """ Should be overwritten in subclasses to
         return summary message for NORMAL EXECUTION. 
         """
         validateMsgs = []

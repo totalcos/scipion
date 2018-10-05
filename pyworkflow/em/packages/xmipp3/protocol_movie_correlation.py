@@ -2,7 +2,7 @@
 # *
 # * Authors:     J.M. De la Rosa Trevin (jmdelarosa@cnb.csic.es)
 # *              Vahid Abrishami (vabrishami@cnb.csic.es)
-# *              Josue Gomez Blanco (jgomez@cnb.csic.es)
+# *              Josue Gomez Blanco (josue.gomez-blanco@mcgill.ca)
 # *
 # * Unidad de  Bioinformatica of Centro Nacional de Biotecnologia , CSIC
 # *
@@ -115,8 +115,8 @@ class XmippProtMovieCorr(ProtAlignMovies):
         inputMd = os.path.join(movieFolder, 'input_movie.xmd')
         writeMovieMd(movie, inputMd, a0, aN, useAlignment=False)
 
-        args  = '-i %s ' % inputMd
-        args += '-o %s ' % self._getShiftsFile(movie)
+        args  = '-i "%s" ' % inputMd
+        args += '-o "%s" ' % self._getShiftsFile(movie)
         args += '--sampling %f ' % movie.getSamplingRate()
         args += '--max_freq %f ' % self.maxFreq
         args += '--Bspline %d ' % self.INTERP_MAP[self.splineOrder.get()]
@@ -157,10 +157,10 @@ class XmippProtMovieCorr(ProtAlignMovies):
 
         if self.doSaveAveMic or self.doComputePSD:
             fnAvg = self._getExtraPath(self._getOutputMicName(movie))
-            args += ' --oavg %s' % fnAvg
+            args += ' --oavg "%s"' % fnAvg
 
         if self.doComputePSD:
-            fnInitial = os.path.join(movieFolder,"initialMic.mrc")
+            fnInitial = os.path.join(movieFolder, "initialMic.mrc")
             args  += ' --oavgInitial %s' % fnInitial
 
         if self.doSaveMovie:
@@ -227,6 +227,7 @@ class XmippProtMovieCorr(ProtAlignMovies):
         meanX, meanY = self._loadMeanShifts(movie)
         plotter = createAlignmentPlot(meanX, meanY)
         plotter.savefig(self._getPlotCart(movie))
+        plotter.close()
 
     def _setAlignmentInfo(self, movie, obj):
         """ Set alignment info such as plot and psd filename, and

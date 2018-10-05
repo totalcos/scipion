@@ -1,7 +1,7 @@
 # **************************************************************************
 # *
 # * Authors:     Roberto Marabini (roberto@cnb.csic.es)
-# *              Josue Gomez Blanco (jgomez@cnb.csic.es)
+# *              Josue Gomez Blanco (josue.gomez-blanco@mcgill.ca)
 # *
 # *
 # * This program is free software; you can redistribute it and/or modify
@@ -23,7 +23,7 @@
 # *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
-
+import os
 from os.path import exists, realpath, abspath
 
 import pyworkflow.protocol.params as params
@@ -31,7 +31,7 @@ import pyworkflow.protocol.constants as cons
 import pyworkflow.utils.path as pwutils
 from pyworkflow.em.protocol import ProtAlignMovies, ProtProcessMovies
 
-from grigoriefflab import SUMMOVIE_PATH
+from grigoriefflab import SUMMOVIE_PATH, SUMMOVIE_HOME
 from convert import writeShiftsMovieAlignment
 
 
@@ -44,7 +44,22 @@ class ProtSummovie(ProtAlignMovies):
     _label = 'summovie'
     CONVERT_TO_MRC = 'mrc'
     doSaveAveMic = True
-    
+
+    @classmethod
+    def validateInstallation(cls):
+        """ Check if the installation of this protocol is correct.
+        Can't rely on package function since this is a "multi package" package
+        Returning an empty list means that the installation is correct
+        and there are not errors. If some errors are found, a list with
+        the error messages will be returned.
+        """
+        missingPaths = []
+
+        if not os.path.exists(SUMMOVIE_PATH):
+            missingPaths.append("%s : %s" % (SUMMOVIE_HOME,SUMMOVIE_PATH))
+        return missingPaths
+
+
     #--------------------------- DEFINE param functions ------------------------
     def _defineAlignmentParams(self, form):
         form.addHidden('binFactor', params.FloatParam, default=1.)

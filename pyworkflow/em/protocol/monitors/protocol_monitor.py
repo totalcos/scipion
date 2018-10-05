@@ -31,7 +31,6 @@ import pyworkflow.protocol.params as params
 from pyworkflow.em.protocol.protocol import EMProtocol
 
 
-
 class ProtMonitor(EMProtocol):
     """ This is the base class for implementing 'Monitors', a special type
     of protocols intended to be used in the context of the Scipion-Box,
@@ -43,7 +42,7 @@ class ProtMonitor(EMProtocol):
     def __init__(self, **kwargs):
         EMProtocol.__init__(self, **kwargs)
 
-    #--------------------------- DEFINE param functions ----------------------
+    # -------------------------- DEFINE param functions ----------------------
     def _defineParams(self, form):    
         form.addSection(label='Input')
         
@@ -55,8 +54,6 @@ class ProtMonitor(EMProtocol):
         form.addParam('samplingInterval', params.IntParam, default=60,
                       label="Sampling Interval (sec)",
                       help="Take one sample each *samplingInterval* seconds")
-
-        #self._sendMailParams(form)
 
     def _sendMailParams(self, form):
         g = form.addGroup('Email settings')
@@ -80,15 +77,15 @@ class ProtMonitor(EMProtocol):
                    label='SMTP Mail server',
                    help='Provide the address of SMTP mail server.')
 
-    #--------------------------- INSERT steps functions ------------------------
+    # -------------------------- INSERT steps functions -----------------------
     def _insertAllSteps(self):
         self._insertFunctionStep('monitorStep')
 
-    #--------------------------- STEPS functions -------------------------------
+    # -------------------------- STEPS functions ------------------------------
     def monitorStep(self):
         pass
 
-    #--------------------------- INFO functions --------------------------------
+    # -------------------------- INFO functions -------------------------------
     def _validate(self):
         return []  # no errors
 
@@ -97,6 +94,14 @@ class ProtMonitor(EMProtocol):
 
     def _methods(self):
         return []
+
+    def getInputProtocols(self):
+        protocols = []
+        for protPointer in self.inputProtocols:
+            prot = protPointer.get()
+            prot.setProject(self.getProject())
+            protocols.append(prot)
+        return protocols
 
     def sendEMail(self, emailSubject, emailMessage):
         # Import smtplib for the actual sending function

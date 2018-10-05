@@ -94,7 +94,7 @@ class GemPickerWizard(emwiz.EmWizard):
 
         pickScript = pw.join('em', 'packages', 'igbmc', 'run_gempicker.py')
 
-        pickCmd = prot.getArgs(threshold=False, workingDir=coordsDir)
+        pickCmd = prot._getPickArgs(threshold=False, workingDir=coordsDir)[0]
         convertCmd = pw.join('apps', 'pw_convert.py')
 
         args = {
@@ -123,6 +123,7 @@ class GemPickerWizard(emwiz.EmWizard):
         f.close()
 
         process = CoordinatesObjectView(project, micfn, coordsDir, prot,
+                                        mode=CoordinatesObjectView.MODE_AUTOMATIC,
                                         pickerProps=pickerConfig).show()
         process.wait()
         myprops = pwutils.readProperties(pickerConfig)

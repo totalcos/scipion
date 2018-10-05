@@ -30,7 +30,7 @@ import numpy
 from pyworkflow.protocol.params import PointerParam, BooleanParam
 from pyworkflow.em.constants import ALIGN_2D, ALIGN_3D, ALIGN_PROJ, ALIGN_NONE
 from pyworkflow.em.data import Coordinate
-from pyworkflow.em.protocol.protocol_particles import ProtParticlePicking
+from pyworkflow.em.protocol import ProtParticlePicking
 
 
 class ProtExtractCoords(ProtParticlePicking):
@@ -65,9 +65,9 @@ class ProtExtractCoords(ProtParticlePicking):
 
         form.addParam('applyShifts', BooleanParam, default=False,
                       label='Apply particle shifts?',
-                      help='Apply particle shifts from 2D alignment to'
+                      help='Apply particle shifts from 2D alignment to '
                            'recalculate new coordinates. This can be useful '
-                           'for re-centering of particle coordinates.')
+                           'for re-centering particle coordinates.')
         
         form.addParallelSection(threads=0, mpi=0)
 

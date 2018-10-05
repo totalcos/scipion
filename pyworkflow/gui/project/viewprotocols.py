@@ -26,8 +26,6 @@
 # **************************************************************************
 from __future__ import print_function
 
-import time
-
 INIT_REFRESH_SECONDS = 3
 
 """
@@ -42,22 +40,26 @@ from collections import OrderedDict
 import Tkinter as tk
 import ttk
 import datetime as dt
+
 import pyworkflow.object as pwobj
 import pyworkflow.utils as pwutils
 import pyworkflow.protocol as pwprot
 import pyworkflow.gui as pwgui
 import pyworkflow.em as em
-from pyworkflow.config import isAFinalProtocol
+from pyworkflow.config import (isAFinalProtocol, getProtocolTag,
+                               PROTOCOL_DISABLED_TAG, PROTOCOL_TAG)
 from pyworkflow.em.wizard import ListTreeProvider
 from pyworkflow.gui.dialog import askColor, ListDialog
 from pyworkflow.viewer import DESKTOP_TKINTER, ProtocolViewer
-from pyworkflow.utils.properties import Message, Icon, Color
-
+from pyworkflow.utils.properties import Message, Icon, Color, KEYSYM
 from constants import STATUS_COLORS
+from pyworkflow.gui.project.utils import getStatusColorFromNode
+from pyworkflow.webservices import WorkflowRepository
 
 DEFAULT_BOX_COLOR = '#f8f8f8'
 
 ACTION_EDIT = Message.LABEL_EDIT
+ACTION_RENAME = Message.LABEL_RENAME
 ACTION_SELECT_TO = Message.LABEL_SELECT_TO
 ACTION_COPY = Message.LABEL_COPY
 ACTION_DELETE = Message.LABEL_DELETE
@@ -72,6 +74,7 @@ ACTION_DEFAULT = Message.LABEL_DEFAULT
 ACTION_CONTINUE = Message.LABEL_CONTINUE
 ACTION_RESULTS = Message.LABEL_ANALYZE
 ACTION_EXPORT = Message.LABEL_EXPORT
+ACTION_EXPORT_UPLOAD = Message.LABEL_EXPORT_UPLOAD
 ACTION_SWITCH_VIEW = 'Switch_View'
 ACTION_COLLAPSE = 'Collapse'
 ACTION_EXPAND = 'Expand'
@@ -90,6 +93,7 @@ ActionIcons = {
     ACTION_COPY: Icon.ACTION_COPY,
     ACTION_DELETE: Icon.ACTION_DELETE,
     ACTION_REFRESH: Icon.ACTION_REFRESH,
+    ACTION_RENAME: Icon.ACTION_RENAME,
     ACTION_STEPS: Icon.ACTION_STEPS,
     ACTION_BROWSE: Icon.ACTION_BROWSE,
     ACTION_DB: Icon.ACTION_DB,
@@ -99,6 +103,7 @@ ActionIcons = {
     ACTION_CONTINUE: Icon.ACTION_CONTINUE,
     ACTION_RESULTS: Icon.ACTION_RESULTS,
     ACTION_EXPORT: Icon.ACTION_EXPORT,
+    ACTION_EXPORT_UPLOAD: Icon.ACTION_EXPORT_UPLOAD,
     ACTION_COLLAPSE: 'fa-minus-square.png',
     ACTION_EXPAND: 'fa-plus-square.png',
     ACTION_LABELS: Icon.TAGS
@@ -178,9 +183,11 @@ class RunsTreeProvider(pwgui.tree.ProjectRunsTreeProvider):
         else:
             status = None
 
-        stoppable = status in [pwprot.STATUS_RUNNING, pwprot.STATUS_SCHEDULED]
+        stoppable = status in [pwprot.STATUS_RUNNING, pwprot.STATUS_SCHEDULED, 
+                               pwprot.STATUS_LAUNCHED] 
 
         return [(ACTION_EDIT, single),
+                (ACTION_RENAME, single),
                 (ACTION_COPY, True),
                 (ACTION_DELETE, status != pwprot.STATUS_RUNNING),
                 (ACTION_STEPS, single),
@@ -188,6 +195,7 @@ class RunsTreeProvider(pwgui.tree.ProjectRunsTreeProvider):
                 (ACTION_DB, single),
                 (ACTION_STOP, stoppable and single),
                 (ACTION_EXPORT, not single),
+                (ACTION_EXPORT_UPLOAD, not single),
                 (ACTION_COLLAPSE, single and status and expanded),
                 (ACTION_EXPAND, single and status and not expanded),
                 (ACTION_LABELS, True),
@@ -350,12 +358,18 @@ class SearchProtocolWindow(pwgui.Window):
             if isAFinalProtocol(prot, key):
                 label = prot.getClassLabel().lower()
                 if keyword in label:
-                    protList.append((key, label))
+                    protList.append((key,
+                                     label,
+                                     prot.isInstalled()))
 
+        # Sort by label
         protList.sort(key=lambda x: x[1])  # sort by label
-        for key, label in protList:
+
+        for key, label, installed in protList:
+            tag = getProtocolTag(installed)
+            if not installed: label += " (not installed)"
             self._resultsTree.insert('', 'end', key,
-                                     text=label, tags=('protocol'))
+                                     text=label, tags=(tag))
 
 
 class RunIOTreeProvider(pwgui.tree.TreeProvider):
@@ -517,11 +531,20 @@ class RunIOTreeProvider(pwgui.tree.TreeProvider):
                         suffix = '[%s]' % extendedValue
                     elif obj.hasExtended():
                         suffix = '[Item %s]' % extendedValue
-                    if obj.get() is None:
-                        labelObj = obj.getObjValue()
-                        suffix = ''
-                    else:
-                        labelObj = obj.get()
+
+                    # Tolerate loading projects:
+                    # When having only the project sqlite..an obj.get() will
+                    # the load of the set...and if it is missing this whole
+                    # "thread" fails.
+                    try:
+                        if obj.get() is None:
+                            labelObj = obj.getObjValue()
+                            suffix = ''
+                        else:
+                            labelObj = obj.get()
+                    except Exception as e:
+                        return  {'parent': parent, 'image': image,
+                                'text': name, 'values': ("Couldn't read object attributes.",)}
                 else:
                     labelObj = obj.get()
 
@@ -565,6 +588,7 @@ class ProtocolsView(tk.Frame):
         self._lastSelectedProtId = None
         self._lastStatus = None
         self.selectingArea = False
+        self._lastRightClickPos = None  # Keep last right-clicked position
 
         self.style = ttk.Style()
         self.root.bind("<F5>", self.refreshRuns)
@@ -578,7 +602,7 @@ class ProtocolsView(tk.Frame):
         self.keybinds = dict()
 
         # Register key binds
-        self._bindKeyPress('Delete', self._onDelPressed)
+        self._bindKeyPress(KEYSYM.DELETE, self._onDelPressed)
 
         self.__autoRefresh = None
         self.__autoRefreshCounter = INIT_REFRESH_SECONDS  # start by 3 secs
@@ -827,12 +851,12 @@ class ProtocolsView(tk.Frame):
     def createActionToolbar(self):
         """ Prepare the buttons that will be available for protocol actions. """
 
+        self.actionButtons = {}
         self.actionList = [ACTION_EDIT, ACTION_COPY, ACTION_DELETE,
                            ACTION_STEPS, ACTION_BROWSE, ACTION_DB,
                            ACTION_STOP, ACTION_CONTINUE, ACTION_RESULTS,
-                           ACTION_EXPORT, ACTION_COLLAPSE, ACTION_EXPAND,
-                           ACTION_LABELS]
-        self.actionButtons = {}
+                           ACTION_EXPORT, ACTION_EXPORT_UPLOAD, ACTION_COLLAPSE,
+                           ACTION_EXPAND, ACTION_LABELS]
 
         def addButton(action, text, toolbar):
             btn = tk.Label(toolbar, text=text,
@@ -912,9 +936,17 @@ class ProtocolsView(tk.Frame):
                              fieldbackground=background)
         t = pwgui.tree.Tree(parent, show='tree', style='W.Treeview')
         t.column('#0', minwidth=300)
-        t.tag_configure('protocol', image=self.getImage('python_file.gif'))
-        t.tag_bind('protocol', '<Double-1>', self._protocolItemClick)
-        t.tag_bind('protocol', '<Return>', self._protocolItemClick)
+        # Protocol nodes
+        t.tag_configure(PROTOCOL_TAG, image=self.getImage('python_file.gif'))
+        t.tag_bind(PROTOCOL_TAG, '<Double-1>', self._protocolItemClick)
+        t.tag_bind(PROTOCOL_TAG, '<Return>', self._protocolItemClick)
+
+        # Disable protocols (not installed) are allowed to be added.
+        t.tag_configure(PROTOCOL_DISABLED_TAG, image=self.getImage('prot_disabled.gif'))
+        t.tag_bind(PROTOCOL_DISABLED_TAG, '<Double-1>', self._protocolItemClick)
+        t.tag_bind(PROTOCOL_DISABLED_TAG, '<Return>', self._protocolItemClick)
+
+
         t.tag_configure('protocol_base', image=self.getImage('class_obj.gif'))
         t.tag_configure('protocol_group', image=self.getImage('class_obj.gif'))
         t.tag_configure('section', font=self.windows.fontBold)
@@ -1057,7 +1089,7 @@ class ProtocolsView(tk.Frame):
         nodeText = self._getNodeText(node)
 
         # Get status color
-        statusColor = self._getStatusColor(node)
+        statusColor = getStatusColorFromNode(node)
 
         # Get the box color (depends on color mode: label or status)
         boxColor = self._getBoxColor(nodeInfo, statusColor, node)
@@ -1133,7 +1165,6 @@ class ProtocolsView(tk.Frame):
 
             return boxColor
         except Exception as e:
-            print("Can't calculate box color:" + str(e))
             return DEFAULT_BOX_COLOR
 
     @staticmethod
@@ -1187,15 +1218,6 @@ class ProtocolsView(tk.Frame):
                 pwgui.Oval(self.runsGraphCanvas, statusX, statusY, statusSize,
                            color='black', anchor=item)
 
-    @staticmethod
-    def _getStatusColor(node):
-
-        # If it is a run node (not PROJECT)
-        if node.run:
-            status = node.run.status.get(pwprot.STATUS_FAILED)
-            return STATUS_COLORS[status]
-        else:
-            return '#ADD8E6'  # Light blue
 
     def _getNodeText(self, node):
 
@@ -1211,6 +1233,8 @@ class ProtocolsView(tk.Frame):
                 nodeText = node.getName() + expandedStr
             else:
                 nodeText = nodeText + expandedStr + '\n' + node.run.getStatusMessage()
+                if node.run.summaryWarnings:
+                    nodeText += u' \u26a0'
 
         return nodeText
 
@@ -1267,6 +1291,7 @@ class ProtocolsView(tk.Frame):
             self.runsGraphCanvas.frame.grid_remove()
             self.updateRunsTreeSelection()
             self.viewButtons[ACTION_TREE].grid_remove()
+            self._lastRightClickPos = None
         else:
             self.runsTree.grid_remove()
             self.updateRunsGraph(reorganize=(previousView != VIEW_LIST))
@@ -1399,6 +1424,8 @@ class ProtocolsView(tk.Frame):
         if n <= 1:
             self._deselectItems(item)
             self._selectItemProtocol(prot)
+            self._lastRightClickPos = self.runsGraphCanvas.eventPos
+
         return self.provider.getObjectActions(prot)
 
     def _runItemControlClick(self, item=None):
@@ -1529,6 +1556,7 @@ class ProtocolsView(tk.Frame):
         protocol = self.getSelectedProtocol()
         workingDir = protocol.getWorkingDir()
         if os.path.exists(workingDir):
+
             window = pwgui.browser.FileBrowserWindow("Browsing: " + workingDir,
                                                      master=self.windows,
                                                      path=workingDir)
@@ -1793,6 +1821,15 @@ class ProtocolsView(tk.Frame):
             entryLabel='File', entryValue='workflow.json')
         browser.show()
 
+    def _exportUploadProtocols(self):
+        try:
+            jsonFn = os.path.join(tempfile.mkdtemp(), 'workflow.json')
+            self.project.exportProtocols(self._getSelectedProtocols(), jsonFn)
+            WorkflowRepository().upload(jsonFn)
+            pwutils.cleanPath(jsonFn)
+        except Exception as ex:
+            self.windows.showError("Error connecting to workflow repository:\n" +  str(ex))
+
     def _stopProtocol(self, prot):
         if pwgui.dialog.askYesNo(Message.TITLE_STOP_FORM,
                                  Message.LABEL_STOP_FORM, self.root):
@@ -1870,6 +1907,17 @@ class ProtocolsView(tk.Frame):
 
         return
 
+    def _renameProtocol(self, prot):
+        """ Open the EditObject dialog to edit the protocol name. """
+        kwargs = {}
+        if self._lastRightClickPos:
+            kwargs['position'] = self._lastRightClickPos
+
+        dlg = pwgui.dialog.EditObjectDialog(self.runsGraphCanvas, Message.TITLE_EDIT_OBJECT,
+                                            prot, self.project.mapper, **kwargs)
+        if dlg.resultYes():
+            self._updateProtocol(prot)
+
     def _runActionClicked(self, action):
         prot = self.getSelectedProtocol()
         if prot:
@@ -1878,6 +1926,8 @@ class ProtocolsView(tk.Frame):
                     pass
                 elif action == ACTION_EDIT:
                     self._openProtocolForm(prot)
+                elif action == ACTION_RENAME:
+                    self._renameProtocol(prot)
                 elif action == ACTION_COPY:
                     self._copyProtocols()
                 elif action == ACTION_DELETE:
@@ -1896,6 +1946,8 @@ class ProtocolsView(tk.Frame):
                     self._analyzeResults(prot)
                 elif action == ACTION_EXPORT:
                     self._exportProtocols()
+                elif action == ACTION_EXPORT_UPLOAD:
+                    self._exportUploadProtocols()
                 elif action == ACTION_COLLAPSE:
                     nodeInfo = self.settings.getNodeById(prot.getObjId())
                     nodeInfo.setExpanded(False)
